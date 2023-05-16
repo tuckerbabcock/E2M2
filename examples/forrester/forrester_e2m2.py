@@ -209,9 +209,9 @@ if __name__ == "__main__":
     # good = True
     good = False
     if good:
-        opt_name = "forrester_moee_good"
+        opt_name = "forrester_e2m2_good"
     else:
-        opt_name = "forrester_moee_bad"
+        opt_name = "forrester_e2m2_bad"
 
 
     lofi_prob = om.Problem(name=f"{opt_name}_lofi")
