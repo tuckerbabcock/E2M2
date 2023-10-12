@@ -13,18 +13,28 @@ def calibrate(lofi_problem, hifi_problem, outputs, inputs, include_error_est=Fal
     lofi_raw_outputs = []
     lofi_calibrated_outputs = []
     hifi_outputs = []
-    for output in outputs:
-        if isinstance(output, (list, tuple)):
-            if isinstance(output[0], (list, tuple)):
-                lofi_raw_outputs.append(output[0][0])
-                lofi_calibrated_outputs.append(output[0][1])
+
+    if isinstance(outputs, list):
+        for output in outputs:
+            if isinstance(output, (list, tuple)):
+                if isinstance(output[0], (list, tuple)):
+                    lofi_raw_outputs.append(output[0][0])
+                    lofi_calibrated_outputs.append(output[0][1])
+                else:
+                    raise RuntimeError("Need to specify low-fidelity raw and calibrated outputs")
+                hifi_outputs.append(output[1])
+            else:
+                lofi_raw_outputs.append(f"uncalibrated_{output}")
+                lofi_calibrated_outputs.append(output)
+                hifi_outputs.append(output)
+    elif isinstance(outputs, dict):
+        for hifi_output, lofi_output in outputs.items():
+            if isinstance(lofi_output, (list, tuple)):
+                    lofi_raw_outputs.append(lofi_output[0])
+                    lofi_calibrated_outputs.append(lofi_output[1])
             else:
                 raise RuntimeError("Need to specify low-fidelity raw and calibrated outputs")
-            hifi_outputs.append(output[1])
-        else:
-            lofi_raw_outputs.append(f"uncalibrated_{output}")
-            lofi_calibrated_outputs.append(output)
-            hifi_outputs.append(output)
+            hifi_outputs.append(hifi_output)
 
     # lofi_outputs = [f"uncalibrated_{output}" for output in outputs]
     cal_orders = {}
