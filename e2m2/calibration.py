@@ -43,7 +43,8 @@ def calibrate(lofi_problem, hifi_problem, outputs, inputs, include_error_est=Fal
         cal.options["f_lofi_x0"] = copy.deepcopy(lofi_problem[lofi_output])
         cal.options["f_hifi_x0"] = copy.deepcopy(hifi_problem[hifi_output])
         cal_orders[hifi_output] = cal.options["order"]
-
+        # print(f"calibration f_lofi: {cal.options['f_lofi_x0']}")
+        # print(f"calibration f_hifi: {cal.options['f_hifi_x0']}")
     
     if any(order > 0 for order in cal_orders.values()):
         lofi_totals = lofi_problem.compute_totals(lofi_raw_outputs, [*inputs.keys()])
@@ -159,6 +160,7 @@ def calibrate(lofi_problem, hifi_problem, outputs, inputs, include_error_est=Fal
             else:
                 old_diffs = None
 
+            # print(lofi_hess_outputs)
             if len(lofi_hess_outputs) > 0:
                 hessian_diffs = hessian_differences(lofi_problem,
                                                     hifi_problem,
@@ -384,11 +386,11 @@ class AdditiveCalibration(om.ExplicitComponent):
         if order > 0:
             inputs = self.options["inputs"]
             if isinstance(inputs, str):
-                self.add_input(inputs)
+                self.add_input(f"delta_{inputs}")
             elif isinstance(inputs, list):
                 for input in inputs:
                     if isinstance(input, str):
-                        self.add_input(input)
+                        self.add_input(f"delta_{input}")
                     else:
                         raise RuntimeError(f"Input: {input} supplied to Calibration is not a string!")
                     
@@ -399,7 +401,7 @@ class AdditiveCalibration(om.ExplicitComponent):
                     val = input_opts.get("val", 1)
                     shape = input_opts.get("shape", 1)
                     units = input_opts.get("units", None)
-                    self.add_input(input, val=val, shape=shape, units=units)
+                    self.add_input(f"delta_{input}", val=val, shape=shape, units=units)
 
         f_lofi_x0 = self.options["f_lofi_x0"]
         f_hifi_x0 = self.options["f_hifi_x0"]
@@ -408,19 +410,19 @@ class AdditiveCalibration(om.ExplicitComponent):
         if order > 0:
             inputs = self.options["inputs"]
             if isinstance(inputs, str):
-                self.declare_partials("gamma", inputs)
+                self.declare_partials("gamma", f"delta_{inputs}")
 
             elif isinstance(inputs, list):
                 for input in inputs:
                     if not isinstance(input, str):
                         raise RuntimeError(f"Input: {input} supplied to Calibration is not a string!")
-                self.declare_partials("gamma", inputs)
+                self.declare_partials("gamma", f"delta_{input}")
                 
             elif isinstance(inputs, dict):
                 for key, value in inputs.items():
                     if not isinstance(key, str):
                         raise RuntimeError(f"Input: {input} supplied to Calibration is not a string!")
-                self.declare_partials("gamma", [*inputs.keys()])
+                self.declare_partials("gamma", [f"delta_{input}" for input in inputs.keys()])
 
 
     def compute(self, inputs, outputs):
@@ -439,9 +441,9 @@ class AdditiveCalibration(om.ExplicitComponent):
                 return
 
             for input in inputs.keys():
-                x_diff = inputs[input] - x0[input]
-                g_gamma = g_hifi_x0[input] - g_lofi_x0[input]
-                gamma += np.dot(g_gamma, x_diff)
+                dv_name = input[6:]
+                g_gamma = g_hifi_x0[dv_name] - g_lofi_x0[dv_name]
+                gamma += np.dot(g_gamma, inputs[input])
 
         outputs["gamma"] = gamma
 
@@ -455,7 +457,8 @@ class AdditiveCalibration(om.ExplicitComponent):
                 return
 
             for input in inputs.keys():
-                g_gamma = g_hifi_x0[input] - g_lofi_x0[input]
+                dv_name = input[6:]
+                g_gamma = g_hifi_x0[dv_name] - g_lofi_x0[dv_name]
                 partials["gamma", input] = g_gamma
 
 if __name__ == "__main__":

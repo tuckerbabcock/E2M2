@@ -274,6 +274,7 @@ class ErrorEstimate(om.ExplicitComponent):
             # self.declare_partials("error_est", inputs, method='cs')
             self.declare_partials("error_est", inputs)
             self.declare_partials("relative_error_est", inputs)
+            self.declare_partials("gradient_error_est", inputs)
         elif isinstance(inputs, list):
             for input in inputs:
                 if isinstance(input, str):
@@ -281,6 +282,7 @@ class ErrorEstimate(om.ExplicitComponent):
                     # self.declare_partials("error_est", input, method='cs')
                     self.declare_partials("error_est", input)
                     self.declare_partials("relative_error_est", input)
+                    self.declare_partials("gradient_error_est", input)
                 else:
                     raise RuntimeError(f"Input: {input} supplied to Calibration is not a string!")
                 
@@ -295,9 +297,11 @@ class ErrorEstimate(om.ExplicitComponent):
                 # self.declare_partials("error_est", input, method='cs')
                 self.declare_partials("error_est", input)
                 self.declare_partials("relative_error_est", input)
+                self.declare_partials("gradient_error_est", input)
 
-        self.add_output("error_est", val=0.0, desc="Squared error estimate")
-        self.add_output("relative_error_est", val=0.0, desc="Squared relative error estimate")
+        self.add_output("error_est", val=0.0, desc="Function error estimate")
+        self.add_output("relative_error_est", val=0.0, desc="Function relative error estimate")
+        self.add_output("gradient_error_est", val=0.0, desc="Squared norm of the estimated gradient error")
 
     def compute(self, inputs, outputs):
         order = self.options["order"]
@@ -354,6 +358,9 @@ class ErrorEstimate(om.ExplicitComponent):
             xTHx = np.dot(x_diff, tmp)
             # error_est = (0.5*xTHx)**2
             error_est = 0.5*xTHx
+            # print(f"error_est: {error_est}")
+            grad_error_est = np.dot(tmp, tmp) 
+            outputs["gradient_error_est"] = grad_error_est
 
         outputs["error_est"] = error_est
 
@@ -424,6 +431,8 @@ class ErrorEstimate(om.ExplicitComponent):
 
             tmp = h_diff_x0 @ x_diff
             xTHx = np.dot(x_diff, tmp)
+            grad_error_est = np.dot(tmp, tmp)
+            grad_partial = 2 * h_diff_x0 @ tmp
 
             offset = 0
             for input in inputs.keys():
@@ -432,6 +441,7 @@ class ErrorEstimate(om.ExplicitComponent):
                 # partials["relative_error_est", input] = partials["error_est", input] / f_hifi_x0**2
                 partials["error_est", input] = tmp[offset:offset + input_size]
                 partials["relative_error_est", input] = partials["error_est", input] / np.abs(f_hifi_x0)
+                partials["gradient_error_est", input] = grad_partial[offset:offset+input_size]
                 offset += input_size
 
 class PolynomialErrorPenalty(om.ExplicitComponent):
