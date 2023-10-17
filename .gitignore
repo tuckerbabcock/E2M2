@@ -130,3 +130,5 @@ dmypy.json
 
 # OpenMDAO files
 examples/**/reports/**
+examples/**/*.db
+examples/**/*.sql

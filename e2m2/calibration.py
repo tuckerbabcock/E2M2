@@ -67,7 +67,7 @@ def calibrate(lofi_problem, hifi_problem, outputs, inputs, include_error_est=Fal
 
                 cal.options["g_lofi_x0"] = copy.deepcopy(lofi_output_totals)
                 cal.options["g_hifi_x0"] = copy.deepcopy(hifi_output_totals)
-                cal.options["x0"] = copy.deepcopy(inputs)
+                cal.options["dvs"] = copy.deepcopy(inputs)
     
     if include_error_est:
         if direct_hessian_diff == False:
@@ -362,10 +362,10 @@ class AdditiveCalibration(om.ExplicitComponent):
                              default=1.0,
                              desc="High-fidelity model value at the calibration point")
 
-        self.options.declare("x0",
+        self.options.declare("dvs",
                              types=dict,
                              default=None,
-                             desc="Dictionary of inputs and their values at the calibration point.")
+                             desc="Dictionary of design variables and their metadata.")
 
         self.options.declare("g_lofi_x0",
                              default=None,
@@ -435,9 +435,8 @@ class AdditiveCalibration(om.ExplicitComponent):
         if order > 0:
             g_lofi_x0 = self.options["g_lofi_x0"]
             g_hifi_x0 = self.options["g_hifi_x0"]
-            x0 = self.options["x0"]
 
-            if g_lofi_x0 is None or g_hifi_x0 is None or x0 is None:
+            if g_lofi_x0 is None or g_hifi_x0 is None:
                 return
 
             for input in inputs.keys():

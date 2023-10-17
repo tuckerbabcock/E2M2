@@ -17,17 +17,19 @@ def l1_merit_function2(driver, penalty, feas_tol):
 def get_active_constraints2(cons, con_vals, dvs, dv_vals, feas_tol):
     active_cons = []
     for con in cons.keys():
+        con_name = cons[con]['name']
         con_val = con_vals[con]
         if cons[con]['equals'] is not None:
-            # print(f"constraint {con} is equality!")
-            active_cons.append(con)
+            print(f"constraint {con} is equality!")
+            active_cons.append(con_name)
         else:
             con_ub = cons[con].get("upper", np.inf)
             con_lb = cons[con].get("lower", -np.inf)
+            print(f"{con} lower bound: {con_lb}, upper bound: {con_ub}, value: {con_vals[con]}")
             if con_val > con_ub or np.isclose(con_val, con_ub, atol=feas_tol, rtol=feas_tol):
-                active_cons.append(con)
+                active_cons.append(con_name)
             elif con_val < con_lb or np.isclose(con_val, con_lb, atol=feas_tol, rtol=feas_tol):
-                active_cons.append(con)
+                active_cons.append(con_name)
 
     for dv in dvs.keys():
         dv_val = dv_vals[dv]
