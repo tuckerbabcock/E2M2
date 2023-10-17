@@ -28,19 +28,6 @@ if __name__ == "__main__":
                                 om.ExecComp("f_hat = f + f_bias"),
                                 promotes=['*'])
     
-    # lf_prob.model.add_subsystem("c",
-    #                             om.ExecComp('c = 4*x'),
-    #                             promotes=['*'])
-
-    # lf_prob.model.add_subsystem("c_cal",
-    #                             AdditiveCalibration(inputs=['x'], order=1),
-    #                             promotes_inputs=["*"],
-    #                             promotes_outputs=[("gamma", "c_bias")])
-
-    # lf_prob.model.add_subsystem("c_hat",
-    #                             om.ExecComp("c_hat = c + c_bias"),
-    #                             promotes=['*'])
-    
     lf_prob.model.add_subsystem("trust_region",
                                 TrustRegion(dvs=['delta_x']),
                                 promotes_inputs=['delta_x'],
@@ -75,14 +62,9 @@ if __name__ == "__main__":
                                 ForresterHiFi(),
                                 promotes_inputs=['x'],
                                 promotes_outputs=['f'])
-    
-    # hf_prob.model.add_subsystem("c",
-    #                             om.ExecComp('c = 4*x'),
-    #                             promotes=['*'])
 
     response_map = {
         "f": ("f", "f_hat"),
-        # "c": ("c", "c_hat")
     }
     hf_prob.driver = TRMMDriver(response_map=response_map)
     hf_prob.driver.low_fidelity_problem = lf_prob
@@ -90,7 +72,6 @@ if __name__ == "__main__":
 
     hf_prob.model.add_design_var('x', lower=0.0, upper=1.0, ref=10, ref0=0)
     hf_prob.model.add_objective('f', ref=10, ref0=-6)
-    # hf_prob.model.add_constraint('c', equals=2, ref=10, ref0=-1)
 
     hf_prob.setup()
     hf_prob['x'] = 1.0

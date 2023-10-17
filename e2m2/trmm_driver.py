@@ -274,10 +274,6 @@ class TRMMDriver(Driver):
                     hf_duals[dv] = dv_dual
             print(f"hf_duals: {hf_duals}")
 
-            # hf_multipliers['power_out'] = hf_multipliers.pop('power_out_con')
-            # hf_multipliers.pop('slack_power_out_1', None)
-            # hf_multipliers.pop('slack_power_out_2', None)
-
             if len(hf_duals) > 0:
                 self.penalty_param = 2.0 * abs(max(hf_duals.values(), key=abs))
 
@@ -294,18 +290,10 @@ class TRMMDriver(Driver):
                 hf_cons, hf_con_vals, hf_dvs, hf_dv_vals, feas_tol)
 
             print(f"active hf cons: {active_hf_cons}")
-            # print(f"hf inputs:")
-            # hf_prob.model.list_inputs()
             hf_totals = hf_prob.compute_totals([hf_obj_name, *active_hf_cons],
                                                [*hf_dvs.keys()],
                                                driver_scaling=False)
             print(f"hf_totals: {hf_totals}")
-
-            # hf_duals = estimate_lagrange_multipliers2(hf_obj_name,
-            #                                           active_hf_cons,
-            #                                           hf_dvs,
-            #                                           hf_totals)
-            # print(f"hf_duals: {hf_duals}")
 
             optim = optimality2(hf_obj_name, active_hf_cons, hf_dvs, hf_duals, hf_totals)
             print(f"{80*'#'}")
@@ -316,17 +304,8 @@ class TRMMDriver(Driver):
             if optim < opt_tol and max_constraint_violation < feas_tol:
                 break
 
-            # update_penalty(lofi_prob, constraint_targets, constraints0, constraintsk, feas_tol, mu_max=10)
-
             self._update_penalty(k, self._cons, con_violation)
-            # # x.append(dict())
-            # # for key in x[k-1].keys():
-            # #     x[k][key] = copy.deepcopy(lf_prob[key])
-            # #     print(f"Setting hf value {key} to {x[k][key]}")
-            # #     hf_prob[key] = x[k][key]
 
-            # for dv in lf_dvs.keys():
-            #     hf_prob[dv][:] = lf_prob[dv]
 
 
     def _update_trust_radius(self, step_norm, r):
