@@ -387,13 +387,13 @@ class TRMMDriver(Driver):
             #     break
 
             # TODO: maybe manually apply scaling here based on HF constraint scalers
-            # lf_totals = lf_prob.compute_totals([self.lf_obj_name, *active_lf_cons],
-            lf_totals = lf_prob.compute_totals(["obj", *active_lf_cons],
+            lf_totals = lf_prob.compute_totals([self.lf_obj_name, *active_lf_cons],
+            # lf_totals = lf_prob.compute_totals(["obj", *active_lf_cons],
                                                [*lf_dvs.keys()],
                                                driver_scaling=False)
             print(f"lf_totals: {lf_totals}")
-            # lf_duals = estimate_lagrange_multipliers2(self.lf_obj_name,
-            lf_duals = estimate_lagrange_multipliers2("obj",
+            lf_duals = estimate_lagrange_multipliers2(self.lf_obj_name,
+            # lf_duals = estimate_lagrange_multipliers2("obj",
                                                       active_lf_cons,
                                                       lf_dvs,
                                                       lf_totals)
@@ -448,7 +448,7 @@ class TRMMDriver(Driver):
             print(f"active hf cons: {active_hf_cons}")
             hf_totals = hf_prob.compute_totals([self.hf_obj_name, *active_hf_cons],
                                                [*hf_dvs.keys()],
-                                               driver_scaling=True)
+                                               driver_scaling=False)
             print(f"hf_totals: {hf_totals}")
 
             optim = optimality2(self.hf_obj_name, active_hf_cons,
