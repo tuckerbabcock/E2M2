@@ -141,10 +141,11 @@ class TRMMDriver(Driver):
             self._setup_lf_prob()
             self._actually_setup = True
         
-        obj_vals = self.get_objective_values()
-        for obj in obj_vals:
-            self.hf_obj_name = obj
-            break
+        # obj_vals = self.get_objective_values()
+        # for obj in obj_vals:
+        #     print(f"hf_obj_name: {obj}")
+        #     self.hf_obj_name = obj
+        #     break
 
     def _setup_lf_prob(self):
         actual_lf_model = self.low_fidelity_problem.model
@@ -180,7 +181,8 @@ class TRMMDriver(Driver):
 
         print(self._responses)
         response_map = self.options['response_map']
-        for meta in self._responses.values():
+        slacks = []
+        for response, meta in self._responses.items():
             response_name = meta['name']
             if response_name not in response_map:
                 response_map[response_name] = (
@@ -200,73 +202,81 @@ class TRMMDriver(Driver):
                                    promotes=['*'])
 
             if meta['type'] == 'con':
-                raise RuntimeError("constraints not yet supported!")
+                scaler = meta['total_scaler'] or 1.0
+                adder = meta['total_adder'] or 0.0
                 if meta['equals'] is not None:
-                    lf_model.add_subsystem(f"elastic_{response_name}_constraint",
+                    con_target = meta['equals'] / scaler - adder
+                    lf_model.add_subsystem(f"elastic_{response_name}_con",
                                            om.ExecComp(
-                                               f"elastic_{response_name}_constraint = {calibrated_response_name} \
-                                                              + {meta['equals']} * ({response_name}_slack_1 - {response_name}_slack_2)"),
+                                               f"elastic_{response_name}_con = {calibrated_response_name} \
+                                                              + {con_target} * ({response_name}_slack_1 - {response_name}_slack_2)"),
                                            promotes=['*'])
-                    lf_model.add_constraint(f"elastic_{response_name}_constraint",
-                                            lower=meta['lower'],
-                                            upper=meta['upper'],
-                                            ref=meta['ref'],
-                                            ref0=meta['ref0'],
-                                            scaler=meta['scaler'],
-                                            adder=meta['adder'])
-                    self.lf_con_names.append(
-                        f"elastic_{response_name}_constraint")
+                    lf_model.add_design_var(f"{response_name}_slack_1", lower=0)
+                    lf_model.add_design_var(f"{response_name}_slack_2", lower=0)
+                    lf_model.add_constraint(f"elastic_{response_name}_con",
+                                            equals=con_target,
+                                            scaler=scaler,
+                                            adder=adder)
+                    slacks.append(f"{response_name}_slack_1")
+                    slacks.append(f"{response_name}_slack_2")
                 else:
-                    if meta['lower'] is not None:
-                        lf_model.add_subsystem(f"elastic_{response_name}_constraint_lb",
+                    if not np.isclose(meta['lower'],-1e30):
+                        con_lb = meta['lower'] / scaler - adder
+                        lf_model.add_subsystem(f"elastic_{response_name}_con_lb",
                                                om.ExecComp(
-                                                   f"elastic_{response_name}_constraint_lb = {calibrated_response_name} \
-                                                                + {np.sign(meta['lower']) * meta['lower']} * {response_name}_slack_lb "),
+                                                   f"elastic_{response_name}_con_lb = {calibrated_response_name} \
+                                                                + {con_lb} * {response_name}_lb_slack"),
                                                promotes=['*'])
-                        lf_model.add_constraint(f"elastic_{response_name}_constraint_lb",
-                                                lower=meta['lower'],
-                                                upper=meta['upper'],
-                                                ref=meta['ref'],
-                                                ref0=meta['ref0'],
-                                                scaler=meta['scaler'],
-                                                adder=meta['adder'])
-                        self.lf_con_names.append(
-                            f"elastic_{response_name}_constraint_lb")
+                        lf_model.add_design_var(f"{response_name}_lb_slack", lower=0)
+                        lf_model.add_constraint(f"elastic_{response_name}_con_lb",
+                                                lower=con_lb,
+                                                scaler=scaler,
+                                                adder=adder)
+                        slacks.append(f"{response_name}_lb_slack")
 
-                    if meta['upper'] is not None:
-                        lf_model.add_subsystem(f"elastic_{response_name}_constraint_ub",
+                    if not np.isclose(meta['upper'], 1e30):
+                        con_ub = meta['upper'] / scaler - adder
+                        lf_model.add_subsystem(f"elastic_{response_name}_con_ub",
                                                om.ExecComp(
-                                                   f"elastic_{response_name}_constraint_ub = {calibrated_response_name} \
-                                                                + {np.sign(meta['upper']) * meta['upper']} * {response_name}_slack_ub"),
+                                                   f"elastic_{response_name}_con_ub = {calibrated_response_name} \
+                                                                - {con_ub} * {response_name}_ub_slack"),
                                                promotes=['*'])
-                        lf_model.add_constraint(f"elastic_{response_name}_constraint_ub",
-                                                lower=meta['lower'],
-                                                upper=meta['upper'],
-                                                ref=meta['ref'],
-                                                ref0=meta['ref0'],
-                                                scaler=meta['scaler'],
-                                                adder=meta['adder'])
-                        self.lf_con_names.append(
-                            f"elastic_{response_name}_constraint_ub")
+                        lf_model.add_design_var(f"{response_name}_ub_slack", lower=0)
+                        lf_model.add_constraint(f"elastic_{response_name}_con_ub",
+                                                upper=con_ub,
+                                                scaler=scaler,
+                                                adder=adder)
+                        slacks.append(f"{response_name}_ub_slack")
 
             if meta['type'] == 'obj':
-                self.hf_obj_name = response_name
+                self.hf_obj_name = response
                 self.lf_obj_name = calibrated_response_name
-                lf_model.add_subsystem("objective",
-                                       om.ExecComp(f"obj = obj_scaler * ({calibrated_response_name} + obj_adder)",
-                                                   obj={
-                                                       'val': 1.0,
-                                                       'units': meta['units']
-                                                   },
-                                                   obj_scaler={
-                                                       'val': meta['total_scaler'] or 1.0
-                                                   },
-                                                   obj_adder={
-                                                       'val': meta['total_adder'] or 0.0
-                                                   }
-                                                   ),
-                                       promotes=['*'])
-                lf_model.add_objective('obj', ref=1, ref0=0)
+
+        obj_string = f"obj = obj_scaler * ({self.lf_obj_name} + obj_adder)"
+        if len(slacks) > 0:
+            obj_string += " + mu * ("
+            for i, slack in enumerate(slacks):
+                if i != (len(slacks) - 1):
+                    obj_string += f"{slack} + "
+                else:
+                    obj_string += f"{slack})"
+
+        print(f"slack string: {obj_string}")
+        lf_model.add_subsystem("objective",
+                                om.ExecComp(obj_string,
+                                            obj={
+                                                'val': 1.0,
+                                                'units': self._responses[self.hf_obj_name]['units']
+                                            },
+                                            obj_scaler={
+                                                'val': self._responses[self.hf_obj_name]['total_scaler'] or 1.0
+                                            },
+                                            obj_adder={
+                                                'val': self._responses[self.hf_obj_name]['total_adder'] or 0.0
+                                            }
+                                            ),
+                                promotes=['*'])
+        lf_model.add_objective('obj', ref=1, ref0=0)
 
         lf_model.add_subsystem("trust_region",
                                TrustRegion(
@@ -298,12 +308,7 @@ class TRMMDriver(Driver):
 
         hf_prob = self._problem()
         lf_prob = self.low_fidelity_problem
-        lf_model = self.low_fidelity_problem.model
 
-        # obj_vals = self.get_objective_values()
-        # for obj in obj_vals:
-        #     hf_obj_name = obj
-        #     break
         lf_prob["obj_scaler"] = self._objs[self.hf_obj_name]['total_scaler'] or 1.0
         lf_prob["obj_adder"] = self._objs[self.hf_obj_name]['total_adder'] or 0.0
 
@@ -336,9 +341,6 @@ class TRMMDriver(Driver):
             lf_prob.driver.opt_settings['Print file'] = f"{lf_prob._name}_{k}.out"
             lf_prob.driver.options['hist_file'] = f"{lf_prob._name}_{k}.db"
             lf_prob.run_driver(case_prefix=f'sub_opt_{k}')
-
-            # lf_prob['delta_x'] -= 0.1
-            # lf_prob.run_model()
 
             # Evaluated predicted merit function at new point
             lf_merit_function = l1_merit_function2(
@@ -385,11 +387,13 @@ class TRMMDriver(Driver):
             #     break
 
             # TODO: maybe manually apply scaling here based on HF constraint scalers
-            lf_totals = lf_prob.compute_totals([self.lf_obj_name, *active_lf_cons],
+            # lf_totals = lf_prob.compute_totals([self.lf_obj_name, *active_lf_cons],
+            lf_totals = lf_prob.compute_totals(["obj", *active_lf_cons],
                                                [*lf_dvs.keys()],
                                                driver_scaling=False)
             print(f"lf_totals: {lf_totals}")
-            lf_duals = estimate_lagrange_multipliers2(self.lf_obj_name,
+            # lf_duals = estimate_lagrange_multipliers2(self.lf_obj_name,
+            lf_duals = estimate_lagrange_multipliers2("obj",
                                                       active_lf_cons,
                                                       lf_dvs,
                                                       lf_totals)

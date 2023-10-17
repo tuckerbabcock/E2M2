@@ -8,7 +8,7 @@ from model import ForresterLoFiGood, ForresterHiFi
 if __name__ == "__main__":
     eq_con = False
 
-    opt_name = "forrester_trmm_driver"
+    opt_name = "constrained_forrester_trmm_driver"
     lf_prob = om.Problem(name=f"{opt_name}_lofi")
 
     lf_prob.model.add_subsystem("new_design",
@@ -114,6 +114,9 @@ if __name__ == "__main__":
     }
     hf_prob.driver = TRMMDriver(response_map=response_map)
     hf_prob.driver.low_fidelity_problem = lf_prob
+    hf_prob.driver._actually_setup = True
+    hf_prob.driver.hf_obj_name = "hifi.f"
+    hf_prob.driver.lf_obj_name = "f_hat"
     hf_prob.driver.options["opt_tol"] = 1e-6
 
     hf_prob.model.add_design_var('x', lower=0.0, upper=1.0, ref=2, ref0=-1)
