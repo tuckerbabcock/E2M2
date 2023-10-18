@@ -140,7 +140,7 @@ class TRMMDriver(Driver):
         if not self._actually_setup:
             self._setup_lf_prob()
             self._actually_setup = True
-        
+
         # obj_vals = self.get_objective_values()
         # for obj in obj_vals:
         #     print(f"hf_obj_name: {obj}")
@@ -169,13 +169,15 @@ class TRMMDriver(Driver):
             adder = meta['total_adder'] or 0.0
             dv_lb = meta['lower'] / scaler - adder
             dv_ub = meta['upper'] / scaler - adder
+
+            print(f"{dv} lb: {dv_lb}, ub: {dv_ub}")
             lf_model.add_constraint(dv,
                                     lower=dv_lb,
                                     upper=dv_ub,
-                                    # scaler=scaler,
-                                    # adder=adder,
-                                    ref=meta['ref'] or 1.0,
-                                    ref0=meta['ref0'] or 0.0,
+                                    scaler=scaler,
+                                    adder=adder,
+                                    # ref=meta['ref'] or 1.0,
+                                    # ref0=meta['ref0'] or 0.0,
                                     linear=True)
             lf_model.set_input_defaults(f'delta_{dv}', val=0)
 
@@ -211,8 +213,10 @@ class TRMMDriver(Driver):
                                                f"elastic_{response_name}_con = {calibrated_response_name} \
                                                               + {con_target} * ({response_name}_slack_1 - {response_name}_slack_2)"),
                                            promotes=['*'])
-                    lf_model.add_design_var(f"{response_name}_slack_1", lower=0)
-                    lf_model.add_design_var(f"{response_name}_slack_2", lower=0)
+                    lf_model.add_design_var(
+                        f"{response_name}_slack_1", lower=0)
+                    lf_model.add_design_var(
+                        f"{response_name}_slack_2", lower=0)
                     lf_model.add_constraint(f"elastic_{response_name}_con",
                                             equals=con_target,
                                             scaler=scaler,
@@ -220,14 +224,15 @@ class TRMMDriver(Driver):
                     slacks.append(f"{response_name}_slack_1")
                     slacks.append(f"{response_name}_slack_2")
                 else:
-                    if not np.isclose(meta['lower'],-1e30):
+                    if not np.isclose(meta['lower'], -1e30):
                         con_lb = meta['lower'] / scaler - adder
                         lf_model.add_subsystem(f"elastic_{response_name}_con_lb",
                                                om.ExecComp(
                                                    f"elastic_{response_name}_con_lb = {calibrated_response_name} \
                                                                 + {con_lb} * {response_name}_lb_slack"),
                                                promotes=['*'])
-                        lf_model.add_design_var(f"{response_name}_lb_slack", lower=0)
+                        lf_model.add_design_var(
+                            f"{response_name}_lb_slack", lower=0)
                         lf_model.add_constraint(f"elastic_{response_name}_con_lb",
                                                 lower=con_lb,
                                                 scaler=scaler,
@@ -241,7 +246,8 @@ class TRMMDriver(Driver):
                                                    f"elastic_{response_name}_con_ub = {calibrated_response_name} \
                                                                 - {con_ub} * {response_name}_ub_slack"),
                                                promotes=['*'])
-                        lf_model.add_design_var(f"{response_name}_ub_slack", lower=0)
+                        lf_model.add_design_var(
+                            f"{response_name}_ub_slack", lower=0)
                         lf_model.add_constraint(f"elastic_{response_name}_con_ub",
                                                 upper=con_ub,
                                                 scaler=scaler,
@@ -263,19 +269,19 @@ class TRMMDriver(Driver):
 
         print(f"slack string: {obj_string}")
         lf_model.add_subsystem("objective",
-                                om.ExecComp(obj_string,
-                                            obj={
-                                                'val': 1.0,
-                                                'units': self._responses[self.hf_obj_name]['units']
-                                            },
-                                            obj_scaler={
-                                                'val': self._responses[self.hf_obj_name]['total_scaler'] or 1.0
-                                            },
-                                            obj_adder={
-                                                'val': self._responses[self.hf_obj_name]['total_adder'] or 0.0
-                                            }
-                                            ),
-                                promotes=['*'])
+                               om.ExecComp(obj_string,
+                                           obj={
+                                               'val': 1.0,
+                                               'units': self._responses[self.hf_obj_name]['units']
+                                           },
+                                           obj_scaler={
+                                               'val': self._responses[self.hf_obj_name]['total_scaler'] or 1.0
+                                           },
+                                           obj_adder={
+                                               'val': self._responses[self.hf_obj_name]['total_adder'] or 0.0
+                                           }
+                                           ),
+                               promotes=['*'])
         lf_model.add_objective('obj', ref=1, ref0=0)
 
         lf_model.add_subsystem("trust_region",
@@ -317,6 +323,10 @@ class TRMMDriver(Driver):
         old_merit_function = l1_merit_function2(
             self, self.penalty_param, feas_tol)
 
+        con_vals = self.get_constraint_values()
+        old_con_violation = constraint_violation2(
+            self, self._cons, con_vals, feas_tol)
+
         for k in range(1, self.options['max_iter']+1):
 
             # Update LF reference point
@@ -335,6 +345,7 @@ class TRMMDriver(Driver):
             calibrate(lf_prob,
                       hf_prob,
                       self.options['response_map'],
+                    #   self.get_design_var_values())
                       self._designvars)
 
             # Optimize calibrated LF model
@@ -359,20 +370,52 @@ class TRMMDriver(Driver):
                 self.set_design_var(dv, new_dv)
 
             hf_prob.run_model()
-            merit_function = l1_merit_function2(
-                self, self.penalty_param, feas_tol)
-            print(f"hf merit: {merit_function}")
 
             lf_prob.model.list_inputs()
             lf_prob.model.list_outputs()
             hf_prob.model.list_inputs()
             hf_prob.model.list_outputs()
 
+            # Evaluate merit function and feasibility at new design point
+            merit_function = l1_merit_function2(
+                self, self.penalty_param, feas_tol)
+            print(f"hf merit: {merit_function}")
+            con_vals = self.get_constraint_values()
+            con_violation = constraint_violation2(
+                self, self._cons, con_vals, feas_tol)
+
             # Update trust radius based on actual and predicted behavior
             ared = old_merit_function - merit_function
             pred = old_merit_function - lf_merit_function
+            print(f"ared: {ared}")
+            print(f"pred: {pred}")
             r = ared / pred
+            print(f"r: {r}")
             self._update_trust_radius(lf_prob['step_norm'], r)
+
+            if len(con_violation) > 0:
+                feasibility_improvement = max([np.abs(old_violation) - np.abs(violation)
+                                              for old_violation, violation in zip(old_con_violation.values(), con_violation.values())])
+            else:
+                feasibility_improvement = 0
+            # print(f"feasibility_improvement: {type(feasibility_improvement)}")
+
+            # If the merit function increases AND there is no reduction in infeasibility, reject the step
+            if r <= 0 and feasibility_improvement <= 0:
+                hf_dvs = self._designvars
+                hf_dv_vals = self.get_design_var_values()
+                for dv in hf_dvs:
+                    scaler = hf_dvs[dv]['total_scaler'] or 1.0
+                    new_dv = hf_dv_vals[dv] - \
+                        lf_dv_vals[f"delta_{dv}"] * scaler
+                    self.set_design_var(dv, new_dv)
+
+                print(f"Rejected step!")
+                # print(f"{80*'#'}")
+                # print(
+                #     f"{k}: Merit function value: {old_merit_function}, optimality: {optim}, max constraint violation: {max_constraint_violation} (r)")
+                # print(f"{80*'#'}")
+                continue
 
             lf_cons = lf_prob.driver._cons
             lf_dvs = lf_prob.driver._designvars
@@ -388,22 +431,18 @@ class TRMMDriver(Driver):
 
             # TODO: maybe manually apply scaling here based on HF constraint scalers
             lf_totals = lf_prob.compute_totals([self.lf_obj_name, *active_lf_cons],
-            # lf_totals = lf_prob.compute_totals(["obj", *active_lf_cons],
+                                               # lf_totals = lf_prob.compute_totals(["obj", *active_lf_cons],
                                                [*lf_dvs.keys()],
                                                driver_scaling=False)
             print(f"lf_totals: {lf_totals}")
             lf_duals = estimate_lagrange_multipliers2(self.lf_obj_name,
-            # lf_duals = estimate_lagrange_multipliers2("obj",
+                                                      # lf_duals = estimate_lagrange_multipliers2("obj",
                                                       active_lf_cons,
                                                       lf_dvs,
                                                       lf_totals)
 
             print(f"lf_duals: {lf_duals}")
             hf_duals = copy.deepcopy(lf_duals)
-
-            con_vals = self.get_constraint_values()
-            con_violation = constraint_violation2(
-                self, self._cons, con_vals, feas_tol)
 
             hf_duals.pop("trust_radius_con", None)
             for metadata in self._cons.values():
@@ -462,6 +501,8 @@ class TRMMDriver(Driver):
                 break
 
             self._update_penalty(k, self._cons, con_violation)
+            old_merit_function = merit_function
+            old_con_violation = con_violation
 
     def _update_trust_radius(self, step_norm, r):
         # print(f"old delta: {self.delta}")
@@ -470,7 +511,7 @@ class TRMMDriver(Driver):
         elif r > self.options['r2']:
             self.delta = min(
                 self.options['c2']*self.delta, self.options['delta_star'])
-        # print(f"new delta: {self.delta}")
+        print(f"new delta: {self.delta}")
 
     def _update_penalty(self, k, cons, con_violation):
         print(f"cons: {cons}")

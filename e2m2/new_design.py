@@ -18,8 +18,8 @@ class NewDesign(om.ExplicitComponent):
                             units=meta['units'],
                             distributed=meta['distributed'])
             
-            # self.declare_partials(dv, [f"delta_{dv}", f"{dv}_k"], method='cs')
-            self.declare_partials(dv, f"delta_{dv}", method='cs')
+            self.declare_partials(dv, [f"delta_{dv}", f"{dv}_k"], method='cs')
+            # self.declare_partials(dv, f"delta_{dv}", method='cs')
 
     def compute(self, inputs, outputs):
         dvs = self.options['design_vars']
