@@ -7,7 +7,7 @@ import openmdao.api as om
 from openmdao.core.driver import Driver
 
 from .calibration import AdditiveCalibration, calibrate
-from .error_est import ErrorEstimate, update_error_ests
+from .error_est import ErrorEstimate, update_error_ests, update_langrangian_error_est
 from .new_design import NewDesign
 from .utils import \
     estimate_lagrange_multipliers2, \
@@ -50,6 +50,7 @@ class E2M2Driver(Driver):
 
         self.lf_obj_name = None
         self.hf_obj_name = None
+        self.calibrated_responses = []
 
         self._actually_setup = False
 
@@ -169,6 +170,7 @@ class E2M2Driver(Driver):
                                    om.ExecComp(f"{response_name}_error_con = {response_name}_error_est - tau_{response_name}"),
                                    promotes=['*'])
             lf_model.add_constraint(f"{response_name}_error_con", upper=0.0)
+            self.calibrated_responses.append(response_name)
 
             if meta['type'] == 'con':
                 scaler = meta['total_scaler'] or 1.0
@@ -251,6 +253,21 @@ class E2M2Driver(Driver):
                                promotes=['*'])
         lf_model.add_objective('obj', ref=1, ref0=0)
 
+        lf_model.add_subsystem("lagrangian_error_est",
+                                ErrorEstimate(dvs=self._designvars),
+                                promotes_inputs=['*'],
+                                promotes_outputs=[('error_est', 'lagrangian_error_est'),
+                                                  ('gradient_error_est', 'lagrangian_gradient_error_est')])
+        lf_model.add_subsystem(f"lagrangian_error_con",
+                                om.ExecComp("lagrangian_error_con = lagrangian_error_est - tau_lagrangian"),
+                                promotes=['*'])
+        lf_model.add_constraint("lagrangian_error_con", upper=0.0)
+        lf_model.add_subsystem(f"lagrangian_gradient_error_con",
+                                om.ExecComp("lagrangian_gradient_error_con = lagrangian_gradient_error_est - tau_lagrangian_gradient**2"),
+                                promotes=['*'])
+        lf_model.add_constraint("lagrangian_gradient_error_con", upper=0.0)
+        self.calibrated_responses.append("lagrangian")
+
         self.low_fidelity_problem.model = lf_model
         self.low_fidelity_problem.setup()
 
@@ -291,11 +308,10 @@ class E2M2Driver(Driver):
                 lf_prob.set_val(f"delta_{dv}", 0.0)
 
             # Update error estimate bounds
-            for meta in self._responses.values():
-                response_name = meta['name']
+            for response in self.calibrated_responses:
                 tau = self.options['tau']
                 # lf_prob.set_val(f'tau_{response_name}', min(tau, tau*hf_prob[response_name]))
-                lf_prob.set_val(f'tau_{response_name}', tau)
+                lf_prob.set_val(f'tau_{response}', tau)
 
             lf_prob.run_model()
 
@@ -433,9 +449,14 @@ class E2M2Driver(Driver):
                               lf_prob,
                               lf_totals,
                               hf_totals)
-                    #   include_error_est=True,
-                    #   direct_hessian_diff=True,
-                    #   sr1_hessian_diff=True)
+
+            update_langrangian_error_est(self._designvars,
+                                         self._responses,
+                                         self.options['response_map'],
+                                         lf_prob,
+                                         lf_totals,
+                                         hf_totals,
+                                         hf_duals)
 
             optim = optimality2(self.hf_obj_name, active_hf_cons,
                                 hf_dvs, hf_duals, hf_totals)
@@ -450,6 +471,7 @@ class E2M2Driver(Driver):
             self._update_penalty(k, self._cons, con_violation)
             old_merit_function = merit_function
             old_con_violation = con_violation
+            lf_prob.set_val(f'tau_lagrangian_gradient', optim)
 
     def _update_penalty(self, k, cons, con_violation):
         print(f"cons: {cons}")

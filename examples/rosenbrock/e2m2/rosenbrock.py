@@ -7,7 +7,7 @@ from model import RosenbrockLF, RosenbrockHF
 
 if __name__ == "__main__":
 
-    opt_name = "rosenbrock_trmm"
+    opt_name = "rosenbrock_e2m2"
 
     lf_prob = om.Problem(name=f"{opt_name}_lofi")
     lf_prob.model.add_subsystem('lofi',
@@ -16,7 +16,7 @@ if __name__ == "__main__":
                                 promotes_outputs=['f'])
     lf_prob.driver = om.pyOptSparseDriver()
     lf_prob.driver.options['optimizer'] = 'SNOPT'
-    lf_prob.driver.opt_settings['Major optimality tolerance'] = 1e-7
+    lf_prob.driver.opt_settings['Major optimality tolerance'] = 1e-8
     # lf_prob.driver.opt_settings['Verify level'] = -1
 
     hf_prob = om.Problem(name=f"{opt_name}_hifi")
