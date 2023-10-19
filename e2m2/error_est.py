@@ -18,8 +18,9 @@ def get_design_step(n, lf_prob, dvs):
 def get_gradient_difference(n, dvs, hf_response, hf_response_name, response_map, lf_totals, hf_totals):
     grad_diff = np.zeros(n)
     offset = 0
+    calibrated_lf_response_name = response_map[hf_response_name][1]
     for dv in dvs.keys():
-        diff = lf_totals[response_map[hf_response_name][0], f"delta_{dv}"] - hf_totals[hf_response, dv]
+        diff = lf_totals[calibrated_lf_response_name, f"delta_{dv}"] - hf_totals[hf_response, dv]
         print(f"diff: {diff}")
         grad_diff[offset:offset + diff.size] = diff
         offset += diff.size
@@ -44,15 +45,15 @@ def update_error_ests(dvs, responses, response_map, lf_prob, lf_totals, hf_total
         error_est = getattr(lf_prob.model, f"{response_name}_error_est")
 
         grad_diff = get_gradient_difference(n, dvs, response, response_name, response_map, lf_totals, hf_totals)
-        print(f"grad_diff: {grad_diff}")
+        # print(f"grad_diff: {grad_diff}")
 
         h_diff_x0 = error_est.options['h_diff_x0']
         error_est.options['h_diff_x0'] = update_approximate_hessian_difference(grad_diff,
                                                                                design_step,
                                                                                h_diff_x0)
-        print(f"Hessian:\n{error_est.options['h_diff_x0']}")
+        # print(f"Hessian:\n{error_est.options['h_diff_x0']}")
 
-def update_langrangian_error_est(dvs, responses, response_map, lf_prob, lf_totals, hf_totals, hf_duals):
+def update_lagrangian_error_est(dvs, responses, response_map, lf_prob, lf_totals, hf_totals, hf_duals):
     n = 0
     for dv in dvs.keys():
         n += lf_prob.get_val(dv).size

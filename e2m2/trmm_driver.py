@@ -398,24 +398,7 @@ class TRMMDriver(Driver):
                                               for old_violation, violation in zip(old_con_violation.values(), con_violation.values())])
             else:
                 feasibility_improvement = 0
-            # print(f"feasibility_improvement: {type(feasibility_improvement)}")
-
-            # If the merit function increases AND there is no reduction in infeasibility, reject the step
-            if r <= 0 and feasibility_improvement <= 0:
-                hf_dvs = self._designvars
-                hf_dv_vals = self.get_design_var_values()
-                for dv in hf_dvs:
-                    scaler = hf_dvs[dv]['total_scaler'] or 1.0
-                    new_dv = hf_dv_vals[dv] - \
-                        lf_dv_vals[f"delta_{dv}"] * scaler
-                    self.set_design_var(dv, new_dv)
-
-                print(f"Rejected step!")
-                # print(f"{80*'#'}")
-                # print(
-                #     f"{k}: Merit function value: {old_merit_function}, optimality: {optim}, max constraint violation: {max_constraint_violation} (r)")
-                # print(f"{80*'#'}")
-                continue
+            print(f"feasibility_improvement: {feasibility_improvement}")
 
             lf_cons = lf_prob.driver._cons
             lf_dvs = lf_prob.driver._designvars
@@ -485,12 +468,13 @@ class TRMMDriver(Driver):
                 hf_cons, hf_con_vals, hf_dvs, hf_dv_vals, feas_tol)
 
             print(f"active hf cons: {active_hf_cons}")
-            hf_totals = hf_prob.compute_totals([self.hf_obj_name, *active_hf_cons],
+            # hf_totals = hf_prob.compute_totals([self.hf_obj_name, *active_hf_cons],
+            hf_totals = hf_prob.compute_totals([*self._responses.keys()],
                                                [*hf_dvs.keys()],
                                                driver_scaling=False)
             print(f"hf_totals: {hf_totals}")
 
-            optim = optimality2(self.hf_obj_name, active_hf_cons,
+            optim = optimality2(self._responses, self.hf_obj_name, active_hf_cons,
                                 hf_dvs, hf_duals, hf_totals)
             print(f"{80*'#'}")
             print(
@@ -499,6 +483,23 @@ class TRMMDriver(Driver):
 
             if optim < opt_tol and max_constraint_violation < feas_tol:
                 break
+
+            # If the merit function increases AND there is no reduction in infeasibility, reject the step
+            if r <= 0 and feasibility_improvement <= 0:
+                hf_dvs = self._designvars
+                hf_dv_vals = self.get_design_var_values()
+                for dv in hf_dvs:
+                    scaler = hf_dvs[dv]['total_scaler'] or 1.0
+                    new_dv = hf_dv_vals[dv] - \
+                        lf_dv_vals[f"delta_{dv}"] * scaler
+                    self.set_design_var(dv, new_dv)
+
+                print(f"Rejected step!")
+                # print(f"{80*'#'}")
+                # print(
+                #     f"{k}: Merit function value: {old_merit_function}, optimality: {optim}, max constraint violation: {max_constraint_violation} (r)")
+                # print(f"{80*'#'}")
+                continue
 
             self._update_penalty(k, self._cons, con_violation)
             old_merit_function = merit_function

@@ -107,7 +107,7 @@ def estimate_lagrange_multipliers2(obj, active_cons, dvs, totals):
 
     return duals
 
-def optimality2(obj, active_cons, dvs, duals, totals):
+def optimality2(responses, obj, active_cons, dvs, duals, totals):
     n = 0
     for metadata in dvs.values():
         n += metadata['global_size']
@@ -123,11 +123,17 @@ def optimality2(obj, active_cons, dvs, duals, totals):
     active_cons_jac = np.zeros((n, n_con))
     dual_vec = np.zeros(n_con)
     dual_offset = 0
+
+    response_map = {}
+    for response, meta in responses.items():
+        response_map[meta['name']] = response
+    
     for i, con in enumerate(active_cons):
         if con in dvs.keys():
             con_grad = {dv: np.array([1.0]) if dv == con else np.array([0.0]) for dv in dvs.keys()}
         else:
-            con_grad = {dv: totals[con, dv] for dv in dvs.keys()}
+
+            con_grad = {dv: totals[response_map[con], dv] for dv in dvs.keys()}
         offset = 0
         for dv in dvs.keys():
             dv_size = dvs[dv]['size']

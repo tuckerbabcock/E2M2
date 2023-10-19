@@ -7,6 +7,7 @@ from model import ForresterLoFiBad, ForresterLoFiGood, ForresterHiFi
 
 if __name__ == "__main__":
     eq_con = False
+    ub_con = False
 
     opt_name = "constrained_forrester_e2m2_driver"
 
@@ -48,8 +49,11 @@ if __name__ == "__main__":
 
     if eq_con:
         hf_prob.model.add_constraint('c', equals=3, ref=3, ref0=1)
-    else:
+    elif ub_con:
         hf_prob.model.add_constraint('c', upper=3, ref=3, ref0=1)
+    else:
+        hf_prob.model.add_constraint('c', lower=3, ref=3, ref0=1)
+
 
     hf_prob.setup()
     hf_prob['x'] = 1.0
