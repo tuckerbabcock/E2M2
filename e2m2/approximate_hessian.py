@@ -1,30 +1,38 @@
-import copy
-import numbers
-
 import numpy as np
 from scipy.optimize import SR1
 
-import openmdao.api as om
 
 def update_approximate_hessian_difference(gradient_difference, design_step, hessian=None):
     # print(f"Hessian: {hessian}")
-    n = design_step.size
     if hessian is None:
-        hess = SR1()
+        # print(f"initializing Hessian difference!")
+        # hess = BFGS(exception_strategy='damp_update')
+        hess = SR1(min_denominator=1e-12, init_scale=1.0)
+        n = design_step.size
         hess.initialize(n, 'hess')
-        hessian = [hess, np.copy(gradient_difference), np.copy(hess.get_matrix())]
+        hessian = [hess, np.copy(gradient_difference),
+                   np.copy(hess.get_matrix())]
 
     else:
         gradient_difference_k_1 = hessian[1]
+        # print(f"design step: {design_step}")
         # print(f"gradient_update: {gradient_difference - gradient_difference_k_1}")
-        hessian[0].update(design_step, gradient_difference - gradient_difference_k_1)
+
+        delta_gradient_difference = gradient_difference - gradient_difference_k_1
+        if np.linalg.norm(delta_gradient_difference) < 1e-16:
+            delta_gradient_difference = 1e-16 * \
+                np.random.normal(size=delta_gradient_difference.size)
+        hessian[0].update(design_step, delta_gradient_difference)
         hessian[1] = np.copy(gradient_difference)
 
         e, v = np.linalg.eig(hessian[0].get_matrix())
-
+        # print(f"eigenvalues: {e}")
         e = np.abs(e)
         e[e < 1e-12] = 0
-        e[np.where(e == 0)[0]] = np.min(e[np.nonzero(e)])
+        nonzero_e = e[np.nonzero(e)]
+        if nonzero_e.size != 0:
+            e[np.where(e == 0)[0]] = np.min(nonzero_e)
+        # print(f"spd eigenvalues: {e}")
 
         hessian[2] = v @ np.diag(e) @ v.T
 
@@ -92,7 +100,7 @@ def update_approximate_hessian_difference(gradient_difference, design_step, hess
 #     #     error_est = getattr(lofi_problem.model, f"{hifi_output}_error_est")
 #     #     # error_est.options["x0"] = copy.deepcopy(inputs)
 #     #     # error_est.options["f_hifi_x0"] = copy.deepcopy(hifi_problem[hifi_output])
-    
+
 #     # lofi_hess_outputs = []
 #     # hifi_hess_outputs = []
 #     # if sr1_hessian_diff:
@@ -181,7 +189,7 @@ def update_approximate_hessian_difference(gradient_difference, design_step, hess
 #         input_size = x0[input].size
 #         problem[input] = x0[input] + delta * pert[offset:offset+input_size]
 #         offset += input_size
-    
+
 #     problem.run_model()
 #     totals = problem.compute_totals(output, [*x0.keys()])
 #     output_totals = {input: copy.deepcopy(totals[output, input]) for input in x0.keys()}
@@ -269,14 +277,14 @@ def update_approximate_hessian_difference(gradient_difference, design_step, hess
 
 #     if isinstance(delta, numbers.Number):
 #         delta = {input: delta for input in x0.keys()}
-    
+
 #     offset = 0
 #     for input in x0.keys():
 #         input_size = x0[input].size
 #         lofi_prob[input] = x0[input] + delta[input] * pert[offset:offset+input_size]
 #         hifi_prob[input] = x0[input] + delta[input] * pert[offset:offset+input_size]
 #         offset += input_size
-    
+
 #     lofi_prob.run_model()
 #     lofi_totals = lofi_prob.compute_totals(lofi_outputs, [*x0.keys()])
 
