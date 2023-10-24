@@ -20,12 +20,12 @@ def get_active_constraints2(cons, con_vals, dvs, dv_vals, feas_tol):
         con_name = cons[con]['name']
         con_val = con_vals[con]
         if cons[con]['equals'] is not None:
-            print(f"constraint {con} is equality!")
+            # print(f"constraint {con} is equality!")
             active_cons.append(con_name)
         else:
             con_ub = cons[con].get("upper", np.inf)
             con_lb = cons[con].get("lower", -np.inf)
-            print(f"{con} lower bound: {con_lb}, upper bound: {con_ub}, value: {con_vals[con]}")
+            # print(f"{con} lower bound: {con_lb}, upper bound: {con_ub}, value: {con_vals[con]}")
             if con_val > con_ub or np.isclose(con_val, con_ub, atol=feas_tol, rtol=feas_tol):
                 active_cons.append(con_name)
             elif con_val < con_lb or np.isclose(con_val, con_lb, atol=feas_tol, rtol=feas_tol):

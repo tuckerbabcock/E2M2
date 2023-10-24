@@ -350,7 +350,7 @@ class TRMMDriver(Driver):
 
             # Optimize calibrated LF model
             lf_prob.driver.opt_settings['Print file'] = f"{lf_prob._name}_{k}.out"
-            lf_prob.driver.options['hist_file'] = f"{lf_prob._name}_{k}.db"
+            # lf_prob.driver.options['hist_file'] = f"{lf_prob._name}_{k}.db"
             lf_prob.run_driver(case_prefix=f'sub_opt_{k}')
 
             # Evaluated predicted merit function at new point
@@ -482,10 +482,12 @@ class TRMMDriver(Driver):
             print(f"{80*'#'}")
 
             if optim < opt_tol and max_constraint_violation < feas_tol:
+                self.k = k
                 break
+            self.k = k
 
             # If the merit function increases AND there is no reduction in infeasibility, reject the step
-            if r <= 0 and feasibility_improvement <= 0:
+            if ared <= 0 and r <= 0 and feasibility_improvement <= 0:
                 hf_dvs = self._designvars
                 hf_dv_vals = self.get_design_var_values()
                 for dv in hf_dvs:
@@ -506,9 +508,10 @@ class TRMMDriver(Driver):
             old_con_violation = con_violation
 
     def _update_trust_radius(self, step_norm, r):
-        # print(f"old delta: {self.delta}")
+        print(f"old delta: {self.delta}")
         if r < self.options['r1']:
-            self.delta = self.options['c1'] * np.sqrt(step_norm)
+            # self.delta = self.options['c1'] * np.sqrt(step_norm)
+            self.delta = self.options['c1'] * self.delta
         elif r > self.options['r2']:
             self.delta = min(
                 self.options['c2']*self.delta, self.options['delta_star'])
@@ -530,7 +533,7 @@ class TRMMDriver(Driver):
         lf_prob["obj_adder"] = 0.0
 
         lf_prob.driver.opt_settings['Print file'] = f"{lf_prob._name}_feasibility_opt_{k}.out"
-        lf_prob.driver.options['hist_file'] = f"{lf_prob._name}_feasibility_opt_{k}.db"
+        # lf_prob.driver.options['hist_file'] = f"{lf_prob._name}_feasibility_opt_{k}.db"
         lf_prob.run_driver(case_prefix=f'feasibility_opt_{k}')
 
         lf_prob.model.list_inputs()

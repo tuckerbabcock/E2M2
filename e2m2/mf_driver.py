@@ -69,9 +69,9 @@ class MFDriver(Driver):
                 dv: copy.deepcopy(hf_totals[response, dv]) for dv in dvs.keys()
             }
 
-            print(f"{response}:\n")
-            print(cal.options["g_lofi_x0"])
-            print(cal.options["g_hifi_x0"])
+            # print(f"{response}:\n")
+            # print(cal.options["g_lofi_x0"])
+            # print(cal.options["g_hifi_x0"])
 
 
     def _clean_hf_duals(self, hf_duals):
@@ -101,13 +101,13 @@ class MFDriver(Driver):
 
 
     def _update_penalty(self, k, cons, con_violation):
-        print(f"cons: {cons}")
-        print(f"con violation: {con_violation}")
+        # print(f"cons: {cons}")
+        # print(f"con violation: {con_violation}")
         if len(con_violation) == 0:
             return
-        print(20*"*")
+        print(80*"*")
         print(f"update penalty!")
-        print(20*"*")
+        print(80*"*")
         feas_tol = self.options['feas_tol']
 
         lf_prob = self.low_fidelity_problem
@@ -118,11 +118,11 @@ class MFDriver(Driver):
         lf_prob["obj_adder"] = 0.0
 
         lf_prob.driver.opt_settings['Print file'] = f"{lf_prob._name}_feasibility_opt_{k}.out"
-        lf_prob.driver.options['hist_file'] = f"{lf_prob._name}_feasibility_opt_{k}.db"
+        # lf_prob.driver.options['hist_file'] = f"{lf_prob._name}_feasibility_opt_{k}.db"
         lf_prob.run_driver(case_prefix=f'feasibility_opt_{k}')
 
-        lf_prob.model.list_inputs()
-        lf_prob.model.list_outputs()
+        # lf_prob.model.list_inputs()
+        # lf_prob.model.list_outputs()
         lf_prob["obj_scaler"] = self._objs[self.hf_obj_name]['total_scaler'] or 1.0
         lf_prob["obj_adder"] = self._objs[self.hf_obj_name]['total_adder'] or 0.0
 
@@ -133,32 +133,36 @@ class MFDriver(Driver):
             scaler = cons[con]['total_scaler'] or 1.0
             adder = cons[con]['total_adder'] or 0.0
             con_val = (lf_prob[lf_con_name] + adder) * scaler
-            print(f"{con} val: {con_val}")
+            # print(f"{con} val: {con_val}")
             if cons[con]['equals'] is not None:
                 con_target = cons[con]["equals"]
-                print(f"{con} target: {con_target}, value: {con_val}")
+                # print(f"{con} target: {con_target}, value: {con_val}")
                 if not np.isclose(con_val, con_target, atol=feas_tol, rtol=feas_tol):
-                    print(f"violates equality constraint!")
+                    # print(f"violates equality constraint!")
                     con_violation_inf[con] = con_val - con_target
                 else:
                     con_violation_inf[con] = 0.0
             else:
                 con_ub = cons[con].get("upper", np.inf)
                 con_lb = cons[con].get("lower", -np.inf)
-                print(
-                    f"{con} lower bound: {con_lb}, upper bound: {con_ub}, value: {con_val}")
+                # print(
+                    # f"{con} lower bound: {con_lb}, upper bound: {con_ub}, value: {con_val}")
                 if con_val > con_ub:
                     if not np.isclose(con_val, con_ub, atol=feas_tol, rtol=feas_tol):
-                        print(f"violates upper bound!")
+                        # print(f"violates upper bound!")
                         con_violation_inf[con] = con_val - con_ub
+                    else:
+                        con_violation_inf[con] = 0.0
                 elif con_val < con_lb:
                     if not np.isclose(con_val, con_lb, atol=feas_tol, rtol=feas_tol):
-                        print(f"violates lower bound!")
+                        # print(f"violates lower bound!")
                         con_violation_inf[con] = con_val - con_lb
+                    else:
+                        con_violation_inf[con] = 0.0
                 else:
                     con_violation_inf[con] = 0.0
 
-        print(f"con_violation_inf: {con_violation_inf}")
+        # print(f"con_violation_inf: {con_violation_inf}")
 
         max_con_violation_k = abs(max(con_violation.values(), key=abs))
         max_con_violation_inf = abs(max(con_violation_inf.values(), key=abs))
@@ -172,4 +176,4 @@ class MFDriver(Driver):
         else:
             lf_prob['mu'] = current_mu
 
-        print(f"new mu: {lf_prob['mu']}")
+        # print(f"new mu: {lf_prob['mu']}")

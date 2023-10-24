@@ -18,10 +18,16 @@ def get_design_step(n, lf_prob, dvs):
 def get_gradient_difference(n, dvs, hf_response, hf_response_name, response_map, lf_totals, hf_totals):
     grad_diff = np.zeros(n)
     offset = 0
+    raw_lf_response_name = response_map[hf_response_name][0]
     calibrated_lf_response_name = response_map[hf_response_name][1]
     for dv in dvs.keys():
-        diff = lf_totals[calibrated_lf_response_name, f"delta_{dv}"] - hf_totals[hf_response, dv]
-        print(f"diff: {diff}")
+        raw_diff = lf_totals[raw_lf_response_name, f"delta_{dv}"] - hf_totals[hf_response, dv]
+        cal_diff = lf_totals[calibrated_lf_response_name, f"delta_{dv}"] - hf_totals[hf_response, dv]
+        print(f"raw_diff: {raw_diff}")
+        print(f"cal_diff: {cal_diff}")
+
+        diff = raw_diff
+        # diff = cal_diff
         grad_diff[offset:offset + diff.size] = diff
         offset += diff.size
     return grad_diff
@@ -33,25 +39,27 @@ def update_error_ests(dvs, responses, response_map, lf_prob, lf_totals, hf_total
     
     design_step = get_design_step(n, lf_prob, dvs)
 
-    print()
-    print(f"update error ests:")
+    # print()
+    # print(f"update error ests:")
     print(f"design step: {design_step}")
     print(f"lf_totals: {lf_totals}")
     print(f"hf_totals: {hf_totals}")
-    print(f"responses: {responses}")
-    print()
+    # print(f"responses: {responses}")
+    # print()
     for response, meta in responses.items():
         response_name = meta['name']
         error_est = getattr(lf_prob.model, f"{response_name}_error_est")
 
         grad_diff = get_gradient_difference(n, dvs, response, response_name, response_map, lf_totals, hf_totals)
-        # print(f"grad_diff: {grad_diff}")
+        print(f"grad_diff: {grad_diff}")
 
         h_diff_x0 = error_est.options['h_diff_x0']
         error_est.options['h_diff_x0'] = update_approximate_hessian_difference(grad_diff,
                                                                                design_step,
                                                                                h_diff_x0)
-        # print(f"Hessian:\n{error_est.options['h_diff_x0']}")
+        print(f"Hessian diff mat:\n{error_est.options['h_diff_x0']}")
+        ### There is an error in the Hessian difference matrix: most easily shown in the Paraboloid case
+        ### Need to debug tomorrow
 
 def update_lagrangian_error_est(dvs, responses, response_map, lf_prob, lf_totals, hf_totals, hf_duals):
     n = 0
