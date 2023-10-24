@@ -70,15 +70,21 @@ class E2M2Driver(MFDriver):
         self.options.declare('feas_tol',
                              default=1e-6,
                              desc='The high-fidelity feasibility tolerance used to determine convergence')
-        self.options.declare('tau',
+        self.options.declare('tau_abs',
+                             default=1e-2,
+                             desc='')
+        self.options.declare('tau_rel',
+                             default=1e-2,
+                             desc='')
+        self.options.declare('tau_optim',
                              default=1e-1,
                              desc='')
         self.options.declare('max_iter',
-                             default=20,
+                             default=100,
                              lower=0,
                              desc='Maximum number of iterations.')
         self.options.declare('mu_max',
-                             default=10,
+                             default=50,
                              lower=1,
                              desc='Maximum penalty parameter for solving elastic sub-problem.')
         self.options.declare('disp',
@@ -212,7 +218,6 @@ class E2M2Driver(MFDriver):
 
                     if not np.isclose(meta['upper'], 1e30):
                         con_ub = meta['upper'] / scaler - adder
-                        print(f"{response_name} ub: {con_ub}")
                         lf_model.add_subsystem(f"elastic_{response_name}_con_ub",
                                                om.ExecComp(
                                                    f"elastic_{response_name}_con_ub = {calibrated_response_name} \
@@ -265,10 +270,10 @@ class E2M2Driver(MFDriver):
                                om.ExecComp(
                                    "lagrangian_error_con = lagrangian_error_est - tau_lagrangian"),
                                promotes=['*'])
-        lf_model.add_constraint("lagrangian_error_con", upper=0.0)
+        # lf_model.add_constraint("lagrangian_error_con", upper=0.0)
         lf_model.add_subsystem(f"lagrangian_gradient_error_con",
                                om.ExecComp(
-                                   "lagrangian_gradient_error_con = lagrangian_gradient_error_est - tau_lagrangian_gradient**2"),
+                                   "lagrangian_gradient_error_con = lagrangian_gradient_error_est - tau_lagrangian_gradient * optim**2"),
                                promotes=['*'])
         lf_model.add_constraint("lagrangian_gradient_error_con", upper=0.0)
         self.calibrated_responses.append("lagrangian")
@@ -306,8 +311,17 @@ class E2M2Driver(MFDriver):
         self._update_lf_design_point()
         lf_prob.run_model()
 
-        lf_prob.model.list_inputs()
-        lf_prob.model.list_outputs()
+        # Update error estimate bounds
+        for response in self.calibrated_responses:
+            if response == "lagrangian":
+                continue
+            tau_abs = self.options['tau_abs']
+            # tau_rel = self.options['tau_rel']
+            # lf_prob.set_val(f'tau_{response}', min(tau_abs, tau_rel*np.abs(lf_prob[response])))
+            lf_prob.set_val(f'tau_{response}', tau_abs)
+
+        # lf_prob.model.list_inputs()
+        # lf_prob.model.list_outputs()
 
         lf_cons = lf_prob.driver._cons
         lf_con_vals = lf_prob.driver.get_constraint_values()
@@ -319,16 +333,17 @@ class E2M2Driver(MFDriver):
         lf_totals = lf_prob.compute_totals(self.lf_responses,
                                            [*lf_dvs.keys()],
                                            driver_scaling=False)
+        print(f"lf_totals: {lf_totals}")
 
         lf_duals = estimate_lagrange_multipliers2(self.lf_obj_name,
                                                   active_lf_cons,
                                                   lf_dvs,
                                                   lf_totals)
 
-        print(f"lf_duals: {lf_duals}")
+        # print(f"lf_duals: {lf_duals}")
         hf_duals = copy.deepcopy(lf_duals)
         self._clean_hf_duals(hf_duals)
-        print(f"hf_duals: {hf_duals}")
+        # print(f"hf_duals: {hf_duals}")
 
         # Run hifi model and get its totals at initial point
         hf_prob.run_model()
@@ -337,8 +352,12 @@ class E2M2Driver(MFDriver):
                                            driver_scaling=False)
         print(f"hf_totals: {hf_totals}")
 
-        hf_prob.model.list_inputs()
-        hf_prob.model.list_outputs()
+        # hf_prob.model.list_inputs()
+        # hf_prob.model.list_outputs()
+
+        print(f"estimated_error: {lf_prob['f_error_est']}")
+        true_error = np.abs(hf_prob['f'] - lf_prob['f_hat'])
+        print(f"true error: {true_error}")
 
         hf_cons = self._cons
         hf_con_vals = self.get_constraint_values()
@@ -400,7 +419,7 @@ class E2M2Driver(MFDriver):
         for k in range(1, self.options['max_iter']+1):
             # Optimize calibrated LF model
             lf_prob.driver.opt_settings['Print file'] = f"{lf_prob._name}_{k}.out"
-            lf_prob.driver.options['hist_file'] = f"{lf_prob._name}_{k}.db"
+            # lf_prob.driver.options['hist_file'] = f"{lf_prob._name}_{k}.db"
             lf_prob.run_driver(case_prefix=f'sub_opt_{k}')
             
             lf_prob.model.list_inputs()
@@ -412,18 +431,22 @@ class E2M2Driver(MFDriver):
             lf_dv_vals = lf_prob.driver.get_design_var_values()
             active_lf_cons = get_active_constraints2(
                 lf_cons, lf_con_vals, lf_dvs, lf_dv_vals, feas_tol)
+            print(f"active_lf_cons: {active_lf_cons}")
 
             lf_totals = lf_prob.compute_totals(self.lf_responses,
                                                [*lf_dvs.keys()],
                                                driver_scaling=False)
+            print(f"lf_totals: {lf_totals}")
 
             lf_duals = estimate_lagrange_multipliers2(self.lf_obj_name,
                                                     active_lf_cons,
                                                     lf_dvs,
                                                     lf_totals)
 
+            # print(f"lf_duals: {lf_duals}")
             hf_duals = copy.deepcopy(lf_duals)
             self._clean_hf_duals(hf_duals)
+            # print(f"hf_duals: {hf_duals}")
 
             if len(hf_duals) > 0:
                 self.penalty_param = 2.0 * abs(max(hf_duals.values(), key=abs))
@@ -435,6 +458,10 @@ class E2M2Driver(MFDriver):
             # Evaluate HF model at new design point
             self._update_hf_design_point()
             hf_prob.run_model()
+
+            print(f"estimated_error: {lf_prob['f_error_est']}")
+            true_error = np.abs(hf_prob['f'] - lf_prob['f_hat'])
+            print(f"true error: {true_error}")
 
             # Evaluate merit function at new design point
             merit_function = l1_merit_function2(
@@ -454,6 +481,7 @@ class E2M2Driver(MFDriver):
             hf_dv_vals = self.get_design_var_values()
             active_hf_cons = get_active_constraints2(
                 hf_cons, hf_con_vals, hf_dvs, hf_dv_vals, feas_tol)
+            print(f"active_hf_cons: {active_hf_cons}")
 
             con_violation = constraint_violation2(
                 self, hf_cons, hf_con_vals, feas_tol)
@@ -474,6 +502,8 @@ class E2M2Driver(MFDriver):
             hf_totals = hf_prob.compute_totals([*self._responses.keys()],
                                                [*self._designvars.keys()],
                                                driver_scaling=False)
+            print(f"hf_totals: {hf_totals}")
+
             hf_prob.model.list_inputs()
             hf_prob.model.list_outputs()
 
@@ -489,6 +519,7 @@ class E2M2Driver(MFDriver):
             print(f"{80*'#'}")
 
             if optim < opt_tol and max_constraint_violation < feas_tol:
+                self.k = k
                 break
 
             update_error_ests(self._designvars,
@@ -521,12 +552,19 @@ class E2M2Driver(MFDriver):
 
             # Update error estimate bounds
             for response in self.calibrated_responses:
-                tau = self.options['tau']
-                lf_prob.set_val(f'tau_{response}', tau)
+                if response == "lagrangian":
+                    continue
+                tau_abs = self.options['tau_abs']
+                tau_rel = self.options['tau_rel']
+                # lf_prob.set_val(f'tau_{response}', min(tau_abs, tau_rel*np.abs(lf_prob[response])))
+                lf_prob.set_val(f'tau_{response}', tau_abs)
 
             old_merit_function = merit_function
             old_con_violation = con_violation
-            lf_prob.set_val(f'tau_lagrangian_gradient', optim)
+            lf_prob.set_val(f'tau_lagrangian_gradient', self.options['tau_optim'])
+            lf_prob.set_val(f'optim', optim)
+
+            self.k = k
 
     def _clean_hf_duals(self, hf_duals):
         super()._clean_hf_duals(hf_duals)
