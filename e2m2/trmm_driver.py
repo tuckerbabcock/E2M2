@@ -138,7 +138,7 @@ class TRMMDriver(Driver):
             raise RuntimeError('Low fidelity problem is not set!')
 
         if not self._actually_setup:
-            self._setup_lf_prob()
+            self._setup_lf_prob(problem)
             self._actually_setup = True
 
         # obj_vals = self.get_objective_values()
@@ -147,12 +147,17 @@ class TRMMDriver(Driver):
         #     self.hf_obj_name = obj
         #     break
 
-    def _setup_lf_prob(self):
+    def _setup_lf_prob(self, problem):
         actual_lf_model = self.low_fidelity_problem.model
 
         lf_model = om.Group()
+
+        model_metadata = problem.model.get_io_metadata()
+        print(model_metadata)
+        print(f"designvars: {self._designvars}")
         lf_model.add_subsystem("new_design",
-                               NewDesign(design_vars=self._designvars),
+                               NewDesign(metadata=model_metadata,
+                                         design_vars=self._designvars),
                                promotes=['*'])
 
         lf_model.add_subsystem("lf_model",
@@ -179,7 +184,7 @@ class TRMMDriver(Driver):
                                     # ref=meta['ref'] or 1.0,
                                     # ref0=meta['ref0'] or 0.0,
                                     linear=True)
-            lf_model.set_input_defaults(f'delta_{dv}', val=0)
+            # lf_model.set_input_defaults(f'delta_{dv}', val=np.array([0]))
 
         print(self._responses)
         response_map = self.options['response_map']
@@ -193,7 +198,8 @@ class TRMMDriver(Driver):
             calibrated_response_name = response_map[response_name][1]
 
             lf_model.add_subsystem(f"{response_name}_cal",
-                                   AdditiveCalibration(inputs=self._designvars,
+                                   AdditiveCalibration(metadata=model_metadata,
+                                                       inputs=self._designvars,
                                                        order=1),
                                    promotes_inputs=['*'],
                                    promotes_outputs=[('gamma', f'{response_name}_bias')])
@@ -286,7 +292,9 @@ class TRMMDriver(Driver):
 
         lf_model.add_subsystem("trust_region",
                                TrustRegion(
-                                   dvs=[f"delta_{dv}" for dv in self._designvars.keys()]),
+                                   metadata=model_metadata,
+                                   #    dvs=[f"delta_{dv}" for dv in self._designvars.keys()]),
+                                   dvs=self._designvars),
                                promotes_inputs=[
                                    f"delta_{dv}" for dv in self._designvars.keys()],
                                promotes_outputs=['step_norm'])
@@ -345,7 +353,7 @@ class TRMMDriver(Driver):
             calibrate(lf_prob,
                       hf_prob,
                       self.options['response_map'],
-                    #   self.get_design_var_values())
+                      #   self.get_design_var_values())
                       self._designvars)
 
             # Optimize calibrated LF model
@@ -452,7 +460,9 @@ class TRMMDriver(Driver):
             print(f"hf_duals: {hf_duals}")
 
             if len(hf_duals) > 0:
-                self.penalty_param = 2.0 * abs(max(hf_duals.values(), key=abs))
+                self.penalty_param = 2.0 * \
+                    abs(max(max(duals, key=abs)
+                        for duals in hf_duals.values()))
 
             if len(con_violation) > 0:
                 max_constraint_violation = abs(

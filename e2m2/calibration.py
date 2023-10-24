@@ -5,8 +5,9 @@ import openmdao.api as om
 
 # from .error_est import hessian, hessian_differences
 
-#### Error estimates aren't right when the names are not `uncalibrated_{output}`
-#### Need to think more critically about that, and then test on forrester problem making sure it's correct
+# Error estimates aren't right when the names are not `uncalibrated_{output}`
+# Need to think more critically about that, and then test on forrester problem making sure it's correct
+
 
 def calibrate(lofi_problem, hifi_problem, outputs, inputs, include_error_est=False, direct_hessian_diff=False, sr1_hessian_diff=False):
 
@@ -21,7 +22,8 @@ def calibrate(lofi_problem, hifi_problem, outputs, inputs, include_error_est=Fal
                     lofi_raw_outputs.append(output[0][0])
                     lofi_calibrated_outputs.append(output[0][1])
                 else:
-                    raise RuntimeError("Need to specify low-fidelity raw and calibrated outputs")
+                    raise RuntimeError(
+                        "Need to specify low-fidelity raw and calibrated outputs")
                 hifi_outputs.append(output[1])
             else:
                 lofi_raw_outputs.append(f"uncalibrated_{output}")
@@ -30,10 +32,11 @@ def calibrate(lofi_problem, hifi_problem, outputs, inputs, include_error_est=Fal
     elif isinstance(outputs, dict):
         for hifi_output, lofi_output in outputs.items():
             if isinstance(lofi_output, (list, tuple)):
-                    lofi_raw_outputs.append(lofi_output[0])
-                    lofi_calibrated_outputs.append(lofi_output[1])
+                lofi_raw_outputs.append(lofi_output[0])
+                lofi_calibrated_outputs.append(lofi_output[1])
             else:
-                raise RuntimeError("Need to specify low-fidelity raw and calibrated outputs")
+                raise RuntimeError(
+                    "Need to specify low-fidelity raw and calibrated outputs")
             hifi_outputs.append(hifi_output)
 
     # lofi_outputs = [f"uncalibrated_{output}" for output in outputs]
@@ -45,10 +48,12 @@ def calibrate(lofi_problem, hifi_problem, outputs, inputs, include_error_est=Fal
         cal_orders[hifi_output] = cal.options["order"]
         # print(f"calibration f_lofi: {cal.options['f_lofi_x0']}")
         # print(f"calibration f_hifi: {cal.options['f_hifi_x0']}")
-    
+
     if any(order > 0 for order in cal_orders.values()):
-        lofi_totals = lofi_problem.compute_totals(lofi_raw_outputs, [*inputs.keys()])
-        hifi_totals = hifi_problem.compute_totals(hifi_outputs, [*inputs.keys()])
+        lofi_totals = lofi_problem.compute_totals(
+            lofi_raw_outputs, [*inputs.keys()])
+        hifi_totals = hifi_problem.compute_totals(
+            hifi_outputs, [*inputs.keys()])
         for hifi_output, lofi_output in zip(hifi_outputs, lofi_raw_outputs):
             cal = getattr(lofi_problem.model, f"{hifi_output}_cal")
 
@@ -69,12 +74,14 @@ def calibrate(lofi_problem, hifi_problem, outputs, inputs, include_error_est=Fal
                 cal.options["g_hifi_x0"] = copy.deepcopy(hifi_output_totals)
                 cal.options["dvs"] = copy.deepcopy(inputs)
 
+
 class MultiplicativeCalibration(om.ExplicitComponent):
     """
     MultiplicativeCalibration handles calibrating a low-fidelity model
     (and optionally its gradient) by multiplying the low-fidelity model
     with a scaling coefficient \beta.
     """
+
     def initialize(self):
         self.options.declare("inputs",
                              types=(str, list, dict),
@@ -83,7 +90,7 @@ class MultiplicativeCalibration(om.ExplicitComponent):
         self.options.declare("f_lofi_x0",
                              default=1.0,
                              desc="Low-fidelity model value at the calibration point")
-        
+
         self.options.declare("f_hifi_x0",
                              default=1.0,
                              desc="High-fidelity model value at the calibration point")
@@ -118,12 +125,14 @@ class MultiplicativeCalibration(om.ExplicitComponent):
                     if isinstance(input, str):
                         self.add_input(input)
                     else:
-                        raise RuntimeError(f"Input: {input} supplied to Calibration is not a string!")
-                    
+                        raise RuntimeError(
+                            f"Input: {input} supplied to Calibration is not a string!")
+
             elif isinstance(inputs, dict):
                 for input, input_opts in inputs.items():
                     if not isinstance(input, str):
-                        raise RuntimeError(f"Input: {input} supplied to Calibration is not a string!")
+                        raise RuntimeError(
+                            f"Input: {input} supplied to Calibration is not a string!")
                     val = input_opts.get("val", 1)
                     shape = input_opts.get("shape", 1)
                     units = input_opts.get("units", None)
@@ -131,7 +140,8 @@ class MultiplicativeCalibration(om.ExplicitComponent):
 
         f_lofi_x0 = self.options["f_lofi_x0"]
         f_hifi_x0 = self.options["f_hifi_x0"]
-        self.add_output("beta", val=f_hifi_x0/f_lofi_x0, desc="Multiplicative scaling value")
+        self.add_output("beta", val=f_hifi_x0/f_lofi_x0,
+                        desc="Multiplicative scaling value")
 
         if order > 0:
             inputs = self.options["inputs"]
@@ -141,15 +151,16 @@ class MultiplicativeCalibration(om.ExplicitComponent):
             elif isinstance(inputs, list):
                 for input in inputs:
                     if not isinstance(input, str):
-                        raise RuntimeError(f"Input: {input} supplied to Calibration is not a string!")
+                        raise RuntimeError(
+                            f"Input: {input} supplied to Calibration is not a string!")
                 self.declare_partials("beta", inputs)
-                
+
             elif isinstance(inputs, dict):
                 for key, value in inputs.items():
                     if not isinstance(key, str):
-                        raise RuntimeError(f"Input: {input} supplied to Calibration is not a string!")
+                        raise RuntimeError(
+                            f"Input: {input} supplied to Calibration is not a string!")
                 self.declare_partials("beta", [*inputs.keys()])
-
 
     def compute(self, inputs, outputs):
         order = self.options["order"]
@@ -167,11 +178,11 @@ class MultiplicativeCalibration(om.ExplicitComponent):
                 return
 
             for input in inputs.keys():
-                g_beta = (g_hifi_x0[input] - beta * g_lofi_x0[input]) / f_lofi_x0
-                beta += g_beta @ (inputs[input] -  x0[input])
+                g_beta = (g_hifi_x0[input] - beta *
+                          g_lofi_x0[input]) / f_lofi_x0
+                beta += g_beta @ (inputs[input] - x0[input])
 
         outputs["beta"] = beta
-
 
     def compute_partials(self, inputs, partials):
         order = self.options["order"]
@@ -186,9 +197,11 @@ class MultiplicativeCalibration(om.ExplicitComponent):
                 return
 
             for input in inputs.keys():
-                g_beta = (g_hifi_x0[input] - beta * g_lofi_x0[input]) / f_lofi_x0
+                g_beta = (g_hifi_x0[input] - beta *
+                          g_lofi_x0[input]) / f_lofi_x0
 
                 partials["beta", input] = g_beta
+
 
 class AdditiveCalibration(om.ExplicitComponent):
     """
@@ -197,7 +210,11 @@ class AdditiveCalibration(om.ExplicitComponent):
     with a coefficient \gamma.
 
     """
+
     def initialize(self):
+        self.options.declare("metadata",
+                             desc="Dictionary of HF model variables and their metadata")
+
         self.options.declare("inputs",
                              types=(str, list, dict),
                              desc="Names of inputs to take gradient with respect to.")
@@ -205,7 +222,7 @@ class AdditiveCalibration(om.ExplicitComponent):
         self.options.declare("f_lofi_x0",
                              default=1.0,
                              desc="Low-fidelity model value at the calibration point")
-        
+
         self.options.declare("f_hifi_x0",
                              default=1.0,
                              desc="High-fidelity model value at the calibration point")
@@ -229,6 +246,7 @@ class AdditiveCalibration(om.ExplicitComponent):
                              desc="Calibration order. 0th order calibrates values, 1st order also calibrates gradients")
 
     def setup(self):
+        metadata = self.options['metadata']
 
         order = self.options["order"]
         if order > 0:
@@ -240,20 +258,26 @@ class AdditiveCalibration(om.ExplicitComponent):
                     if isinstance(input, str):
                         self.add_input(f"delta_{input}")
                     else:
-                        raise RuntimeError(f"Input: {input} supplied to Calibration is not a string!")
-                    
+                        raise RuntimeError(
+                            f"Input: {input} supplied to Calibration is not a string!")
+
             elif isinstance(inputs, dict):
                 for input, input_opts in inputs.items():
                     if not isinstance(input, str):
-                        raise RuntimeError(f"Input: {input} supplied to Calibration is not a string!")
-                    val = input_opts.get("val", 1)
-                    shape = input_opts.get("shape", 1)
+                        raise RuntimeError(
+                            f"Input: {input} supplied to Calibration is not a string!")
+                    # val = input_opts.get("val", 1)
+                    shape = metadata[input_opts['source']]['shape']
                     units = input_opts.get("units", None)
-                    self.add_input(f"delta_{input}", val=val, shape=shape, units=units)
+                    self.add_input(f"delta_{input}",
+                                   val=0,
+                                   shape=shape,
+                                   units=units)
 
         f_lofi_x0 = self.options["f_lofi_x0"]
         f_hifi_x0 = self.options["f_hifi_x0"]
-        self.add_output("gamma", val=f_hifi_x0 - f_lofi_x0, desc="Additive correction value")
+        self.add_output("gamma", val=f_hifi_x0 - f_lofi_x0,
+                        desc="Additive correction value")
 
         if order > 0:
             inputs = self.options["inputs"]
@@ -263,15 +287,17 @@ class AdditiveCalibration(om.ExplicitComponent):
             elif isinstance(inputs, list):
                 for input in inputs:
                     if not isinstance(input, str):
-                        raise RuntimeError(f"Input: {input} supplied to Calibration is not a string!")
+                        raise RuntimeError(
+                            f"Input: {input} supplied to Calibration is not a string!")
                 self.declare_partials("gamma", f"delta_{input}")
-                
+
             elif isinstance(inputs, dict):
                 for key, value in inputs.items():
                     if not isinstance(key, str):
-                        raise RuntimeError(f"Input: {input} supplied to Calibration is not a string!")
-                self.declare_partials("gamma", [f"delta_{input}" for input in inputs.keys()])
-
+                        raise RuntimeError(
+                            f"Input: {input} supplied to Calibration is not a string!")
+                self.declare_partials(
+                    "gamma", [f"delta_{input}" for input in inputs.keys()])
 
     def compute(self, inputs, outputs):
         order = self.options["order"]
@@ -294,7 +320,6 @@ class AdditiveCalibration(om.ExplicitComponent):
 
         outputs["gamma"] = gamma
 
-
     def compute_partials(self, inputs, partials):
         order = self.options["order"]
         if order > 0:
@@ -307,6 +332,7 @@ class AdditiveCalibration(om.ExplicitComponent):
                 dv_name = input[6:]
                 g_gamma = g_hifi_x0[dv_name] - g_lofi_x0[dv_name]
                 partials["gamma", input] = g_gamma
+
 
 if __name__ == "__main__":
     import unittest
@@ -335,7 +361,8 @@ if __name__ == "__main__":
                                           promotes=["*"])
 
             lofi_prob.model.add_subsystem("f_hat",
-                                          om.ExecComp("f_hat = beta * f_lofi_x"),
+                                          om.ExecComp(
+                                              "f_hat = beta * f_lofi_x"),
                                           promotes=["*"])
             lofi_prob.setup()
 
@@ -353,8 +380,10 @@ if __name__ == "__main__":
             hifi_prob["x"] = x0
             hifi_prob.run_model()
 
-            lofi_prob.model.cal.options["f_lofi_x0"] = copy.deepcopy(lofi_prob["f_lofi_x"])
-            lofi_prob.model.cal.options["f_hifi_x0"] = copy.deepcopy(hifi_prob["f_hifi_x"])
+            lofi_prob.model.cal.options["f_lofi_x0"] = copy.deepcopy(
+                lofi_prob["f_lofi_x"])
+            lofi_prob.model.cal.options["f_hifi_x0"] = copy.deepcopy(
+                hifi_prob["f_hifi_x"])
 
             delta = 1e-1
             pert = np.array([0.242554, 0.5830354, 0.428559])
@@ -363,7 +392,8 @@ if __name__ == "__main__":
             lofi_prob["x"] = x0
             lofi_prob.run_model()
             self.assertAlmostEqual(lofi_prob["f_lofi_x"][0], 3.0)
-            self.assertAlmostEqual(lofi_prob["f_hat"][0], hifi_prob["f_hifi_x"][0])
+            self.assertAlmostEqual(
+                lofi_prob["f_hat"][0], hifi_prob["f_hifi_x"][0])
 
             lofi_prob["x"] = x
             lofi_prob.run_model()
@@ -389,7 +419,8 @@ if __name__ == "__main__":
                                           promotes=["*"])
 
             lofi_prob.model.add_subsystem("f_hat",
-                                          om.ExecComp("f_hat = beta * f_lofi_x"),
+                                          om.ExecComp(
+                                              "f_hat = beta * f_lofi_x"),
                                           promotes=["*"])
             lofi_prob.setup()
 
@@ -407,11 +438,14 @@ if __name__ == "__main__":
             hifi_prob["x"] = x0
             hifi_prob.run_model()
 
-            lofi_prob.model.cal.options["f_lofi_x0"] = copy.deepcopy(lofi_prob["f_lofi_x"])
-            lofi_prob.model.cal.options["f_hifi_x0"] = copy.deepcopy(hifi_prob["f_hifi_x"])
+            lofi_prob.model.cal.options["f_lofi_x0"] = copy.deepcopy(
+                lofi_prob["f_lofi_x"])
+            lofi_prob.model.cal.options["f_hifi_x0"] = copy.deepcopy(
+                hifi_prob["f_hifi_x"])
 
             lofi_prob.run_model()
-            totals_data = lofi_prob.check_totals(of=["f_hat", "f_lofi_x", "beta"], wrt=["x"], method="fd", form="central")
+            totals_data = lofi_prob.check_totals(of=["f_hat", "f_lofi_x", "beta"], wrt=[
+                                                 "x"], method="fd", form="central")
             assert_check_totals(totals_data)
 
         def test_first_order_calibration(self):
@@ -434,8 +468,9 @@ if __name__ == "__main__":
                                           promotes=["*"])
 
             lofi_prob.model.add_subsystem("f_hat",
-                                          om.ExecComp("f_hat = beta * f_lofi_x"),
-                                          promotes=["*"])                                          
+                                          om.ExecComp(
+                                              "f_hat = beta * f_lofi_x"),
+                                          promotes=["*"])
 
             lofi_prob.setup()
 
@@ -457,10 +492,14 @@ if __name__ == "__main__":
             hifi_totals = hifi_prob.compute_totals("f_hifi_x", "x")
             hifi_totals = {"x": copy.deepcopy(hifi_totals["f_hifi_x", "x"])}
 
-            lofi_prob.model.cal.options["f_lofi_x0"] = copy.deepcopy(lofi_prob["f_lofi_x"])
-            lofi_prob.model.cal.options["f_hifi_x0"] = copy.deepcopy(hifi_prob["f_hifi_x"])
-            lofi_prob.model.cal.options["g_lofi_x0"] = copy.deepcopy(lofi_totals)
-            lofi_prob.model.cal.options["g_hifi_x0"] = copy.deepcopy(hifi_totals)
+            lofi_prob.model.cal.options["f_lofi_x0"] = copy.deepcopy(
+                lofi_prob["f_lofi_x"])
+            lofi_prob.model.cal.options["f_hifi_x0"] = copy.deepcopy(
+                hifi_prob["f_hifi_x"])
+            lofi_prob.model.cal.options["g_lofi_x0"] = copy.deepcopy(
+                lofi_totals)
+            lofi_prob.model.cal.options["g_hifi_x0"] = copy.deepcopy(
+                hifi_totals)
             lofi_prob.model.cal.options["x0"] = {"x": x0}
 
             delta = 1e-1
@@ -470,7 +509,8 @@ if __name__ == "__main__":
             lofi_prob["x"] = x0
             lofi_prob.run_model()
             self.assertAlmostEqual(lofi_prob["f_lofi_x"][0], 3.0)
-            self.assertAlmostEqual(lofi_prob["f_hat"][0], hifi_prob["f_hifi_x"][0])
+            self.assertAlmostEqual(
+                lofi_prob["f_hat"][0], hifi_prob["f_hifi_x"][0])
             f_hat_totals = lofi_prob.compute_totals("f_hat", "x")["f_hat", "x"]
             np.testing.assert_allclose(f_hat_totals, hifi_totals["x"])
 
@@ -499,8 +539,9 @@ if __name__ == "__main__":
                                           promotes=["*"])
 
             lofi_prob.model.add_subsystem("f_hat",
-                                          om.ExecComp("f_hat = beta * f_lofi_x"),
-                                          promotes=["*"])                                          
+                                          om.ExecComp(
+                                              "f_hat = beta * f_lofi_x"),
+                                          promotes=["*"])
 
             lofi_prob.setup()
 
@@ -522,14 +563,19 @@ if __name__ == "__main__":
             hifi_totals = hifi_prob.compute_totals("f_hifi_x", "x")
             hifi_totals = {"x": copy.deepcopy(hifi_totals["f_hifi_x", "x"])}
 
-            lofi_prob.model.cal.options["f_lofi_x0"] = copy.deepcopy(lofi_prob["f_lofi_x"])
-            lofi_prob.model.cal.options["f_hifi_x0"] = copy.deepcopy(hifi_prob["f_hifi_x"])
-            lofi_prob.model.cal.options["g_lofi_x0"] = copy.deepcopy(lofi_totals)
-            lofi_prob.model.cal.options["g_hifi_x0"] = copy.deepcopy(hifi_totals)
+            lofi_prob.model.cal.options["f_lofi_x0"] = copy.deepcopy(
+                lofi_prob["f_lofi_x"])
+            lofi_prob.model.cal.options["f_hifi_x0"] = copy.deepcopy(
+                hifi_prob["f_hifi_x"])
+            lofi_prob.model.cal.options["g_lofi_x0"] = copy.deepcopy(
+                lofi_totals)
+            lofi_prob.model.cal.options["g_hifi_x0"] = copy.deepcopy(
+                hifi_totals)
             lofi_prob.model.cal.options["x0"] = {"x": x0}
 
             lofi_prob.run_model()
-            totals_data = lofi_prob.check_totals(of=["f_hat", "f_lofi_x", "beta"], wrt=["x"], method="fd", form="central")
+            totals_data = lofi_prob.check_totals(of=["f_hat", "f_lofi_x", "beta"], wrt=[
+                                                 "x"], method="fd", form="central")
             assert_check_totals(totals_data)
 
     class TestAdditiveCalibration(unittest.TestCase):
@@ -552,7 +598,8 @@ if __name__ == "__main__":
                                           promotes=["*"])
 
             lofi_prob.model.add_subsystem("f_hat",
-                                          om.ExecComp("f_hat = f_lofi_x + gamma"),
+                                          om.ExecComp(
+                                              "f_hat = f_lofi_x + gamma"),
                                           promotes=["*"])
             lofi_prob.setup()
 
@@ -570,8 +617,10 @@ if __name__ == "__main__":
             hifi_prob["x"] = x0
             hifi_prob.run_model()
 
-            lofi_prob.model.cal.options["f_lofi_x0"] = copy.deepcopy(lofi_prob["f_lofi_x"])
-            lofi_prob.model.cal.options["f_hifi_x0"] = copy.deepcopy(hifi_prob["f_hifi_x"])
+            lofi_prob.model.cal.options["f_lofi_x0"] = copy.deepcopy(
+                lofi_prob["f_lofi_x"])
+            lofi_prob.model.cal.options["f_hifi_x0"] = copy.deepcopy(
+                hifi_prob["f_hifi_x"])
 
             delta = 1e-1
             pert = np.array([0.242554, 0.5830354, 0.428559])
@@ -580,7 +629,8 @@ if __name__ == "__main__":
             lofi_prob["x"] = x0
             lofi_prob.run_model()
             self.assertAlmostEqual(lofi_prob["f_lofi_x"][0], 3.0)
-            self.assertAlmostEqual(lofi_prob["f_hat"][0], hifi_prob["f_hifi_x"][0])
+            self.assertAlmostEqual(
+                lofi_prob["f_hat"][0], hifi_prob["f_hifi_x"][0])
 
             lofi_prob["x"] = x
             lofi_prob.run_model()
@@ -606,7 +656,8 @@ if __name__ == "__main__":
                                           promotes=["*"])
 
             lofi_prob.model.add_subsystem("f_hat",
-                                          om.ExecComp("f_hat = f_lofi_x + gamma"),
+                                          om.ExecComp(
+                                              "f_hat = f_lofi_x + gamma"),
                                           promotes=["*"])
             lofi_prob.setup()
 
@@ -624,13 +675,15 @@ if __name__ == "__main__":
             hifi_prob["x"] = x0
             hifi_prob.run_model()
 
-            lofi_prob.model.cal.options["f_lofi_x0"] = copy.deepcopy(lofi_prob["f_lofi_x"])
-            lofi_prob.model.cal.options["f_hifi_x0"] = copy.deepcopy(hifi_prob["f_hifi_x"])
+            lofi_prob.model.cal.options["f_lofi_x0"] = copy.deepcopy(
+                lofi_prob["f_lofi_x"])
+            lofi_prob.model.cal.options["f_hifi_x0"] = copy.deepcopy(
+                hifi_prob["f_hifi_x"])
 
             lofi_prob.run_model()
-            totals_data = lofi_prob.check_totals(of=["f_hat", "f_lofi_x", "gamma"], wrt=["x"], method="fd", form="central")
+            totals_data = lofi_prob.check_totals(of=["f_hat", "f_lofi_x", "gamma"], wrt=[
+                                                 "x"], method="fd", form="central")
             assert_check_totals(totals_data)
-
 
         def test_first_order_calibration(self):
             n = 3
@@ -652,7 +705,8 @@ if __name__ == "__main__":
                                           promotes=["*"])
 
             lofi_prob.model.add_subsystem("f_hat",
-                                          om.ExecComp("f_hat = f_lofi_x + gamma"),
+                                          om.ExecComp(
+                                              "f_hat = f_lofi_x + gamma"),
                                           promotes=["*"])
 
             lofi_prob.setup()
@@ -675,10 +729,14 @@ if __name__ == "__main__":
             hifi_totals = hifi_prob.compute_totals("f_hifi_x", "x")
             hifi_totals = {"x": copy.deepcopy(hifi_totals["f_hifi_x", "x"])}
 
-            lofi_prob.model.cal.options["f_lofi_x0"] = copy.deepcopy(lofi_prob["f_lofi_x"])
-            lofi_prob.model.cal.options["f_hifi_x0"] = copy.deepcopy(hifi_prob["f_hifi_x"])
-            lofi_prob.model.cal.options["g_lofi_x0"] = copy.deepcopy(lofi_totals)
-            lofi_prob.model.cal.options["g_hifi_x0"] = copy.deepcopy(hifi_totals)
+            lofi_prob.model.cal.options["f_lofi_x0"] = copy.deepcopy(
+                lofi_prob["f_lofi_x"])
+            lofi_prob.model.cal.options["f_hifi_x0"] = copy.deepcopy(
+                hifi_prob["f_hifi_x"])
+            lofi_prob.model.cal.options["g_lofi_x0"] = copy.deepcopy(
+                lofi_totals)
+            lofi_prob.model.cal.options["g_hifi_x0"] = copy.deepcopy(
+                hifi_totals)
             lofi_prob.model.cal.options["x0"] = {"x": x0}
 
             delta = 1e-1
@@ -688,7 +746,8 @@ if __name__ == "__main__":
             lofi_prob["x"] = x0
             lofi_prob.run_model()
             self.assertAlmostEqual(lofi_prob["f_lofi_x"][0], 3.0)
-            self.assertAlmostEqual(lofi_prob["f_hat"][0], hifi_prob["f_hifi_x"][0])
+            self.assertAlmostEqual(
+                lofi_prob["f_hat"][0], hifi_prob["f_hifi_x"][0])
             f_hat_totals = lofi_prob.compute_totals("f_hat", "x")["f_hat", "x"]
             np.testing.assert_allclose(f_hat_totals, hifi_totals["x"])
 
@@ -717,7 +776,8 @@ if __name__ == "__main__":
                                           promotes=["*"])
 
             lofi_prob.model.add_subsystem("f_hat",
-                                          om.ExecComp("f_hat = f_lofi_x + gamma"),
+                                          om.ExecComp(
+                                              "f_hat = f_lofi_x + gamma"),
                                           promotes=["*"])
 
             lofi_prob.setup()
@@ -740,14 +800,19 @@ if __name__ == "__main__":
             hifi_totals = hifi_prob.compute_totals("f_hifi_x", "x")
             hifi_totals = {"x": copy.deepcopy(hifi_totals["f_hifi_x", "x"])}
 
-            lofi_prob.model.cal.options["f_lofi_x0"] = copy.deepcopy(lofi_prob["f_lofi_x"])
-            lofi_prob.model.cal.options["f_hifi_x0"] = copy.deepcopy(hifi_prob["f_hifi_x"])
-            lofi_prob.model.cal.options["g_lofi_x0"] = copy.deepcopy(lofi_totals)
-            lofi_prob.model.cal.options["g_hifi_x0"] = copy.deepcopy(hifi_totals)
+            lofi_prob.model.cal.options["f_lofi_x0"] = copy.deepcopy(
+                lofi_prob["f_lofi_x"])
+            lofi_prob.model.cal.options["f_hifi_x0"] = copy.deepcopy(
+                hifi_prob["f_hifi_x"])
+            lofi_prob.model.cal.options["g_lofi_x0"] = copy.deepcopy(
+                lofi_totals)
+            lofi_prob.model.cal.options["g_hifi_x0"] = copy.deepcopy(
+                hifi_totals)
             lofi_prob.model.cal.options["x0"] = {"x": x0}
 
             lofi_prob.run_model()
-            totals_data = lofi_prob.check_totals(of=["f_hat", "f_lofi_x", "gamma"], wrt=["x"], method="fd", form="central")
+            totals_data = lofi_prob.check_totals(of=["f_hat", "f_lofi_x", "gamma"], wrt=[
+                                                 "x"], method="fd", form="central")
             assert_check_totals(totals_data)
 
     unittest.main()

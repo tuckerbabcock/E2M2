@@ -19,34 +19,27 @@ def _rosenbrock_lf(x):
 class RosenbrockLF(om.ExplicitComponent):
     def setup(self):
 
-        self.add_input("x1")
-        self.add_input("x2")
+        self.add_input("x", shape=2)
 
         self.add_output("f")
 
         self.declare_partials('*', '*', method='cs')
 
     def compute(self, inputs, outputs):
-        x1 = inputs['x1']
-        x2 = inputs['x2']
-        x = np.array([x1, x2])
-
+        x = inputs['x']
         outputs['f'] = _rosenbrock_lf(x)
 
 
 class RosenbrockHF(om.ExplicitComponent):
     def setup(self):
-        self.add_input("x1")
-        self.add_input("x2")
+        self.add_input("x", shape=2)
 
         self.add_output("f")
 
         self.declare_partials('*', '*', method='cs')
 
     def compute(self, inputs, outputs):
-        x1 = inputs['x1']
-        x2 = inputs['x2']
-        x = np.array([x1, x2])
+        x = inputs['x']
         outputs['f'] = _rosenbrock_hf(x)
 
 
@@ -66,8 +59,7 @@ if __name__ == "__main__":
 
         prob.setup()
 
-        prob['x1'] = np.random.normal()
-        prob['x2'] = np.random.normal()
+        prob['x'] = np.random.normal(size=2)
         data = prob.check_partials(form="central")
         assert_check_partials(data)
 
@@ -83,8 +75,7 @@ if __name__ == "__main__":
 
         prob.setup()
 
-        prob['x1'] = np.random.normal()
-        prob['x2'] = np.random.normal()
+        prob['x'] = np.random.normal(size=2)
         data = prob.check_partials(form="central")
         assert_check_partials(data)
 
