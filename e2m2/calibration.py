@@ -219,6 +219,9 @@ class AdditiveCalibration(om.ExplicitComponent):
                              types=(str, list, dict),
                              desc="Names of inputs to take gradient with respect to.")
 
+        self.options.declare("response_metadata",
+                             desc="Dictionary of metadata for the calibrated response")
+
         self.options.declare("f_lofi_x0",
                              default=1.0,
                              desc="Low-fidelity model value at the calibration point")
@@ -275,9 +278,14 @@ class AdditiveCalibration(om.ExplicitComponent):
                                    shape=shape,
                                    units=units)
 
-        f_lofi_x0 = self.options["f_lofi_x0"]
-        f_hifi_x0 = self.options["f_hifi_x0"]
-        self.add_output("gamma", val=f_hifi_x0 - f_lofi_x0,
+        resp_metadata = self.options['repsonse_metadata']
+        resp_name = resp_metadata['name'],
+        resp_shape = metadata['resp_name']['shape']
+        resp_units = resp_metadata['units']
+        self.add_output(f"gamma_{resp_name}",
+                        val=0,
+                        shape=resp_shape,
+                        units=resp_units,
                         desc="Additive correction value")
 
         if order > 0:
@@ -298,9 +306,12 @@ class AdditiveCalibration(om.ExplicitComponent):
                         raise RuntimeError(
                             f"Input: {input} supplied to Calibration is not a string!")
                     input_name = meta['name']
-                    self.declare_partials("gamma", f"delta_{input_name}")
+                    self.declare_partials(
+                        f"gamma_{resp_name}", f"delta_{input_name}")
 
     def compute(self, inputs, outputs):
+        resp_metadata = self.options['repsonse_metadata']
+        resp_name = resp_metadata['name'],
         order = self.options["order"]
 
         f_lofi_x0 = self.options["f_lofi_x0"]
@@ -319,9 +330,11 @@ class AdditiveCalibration(om.ExplicitComponent):
                 g_gamma = g_hifi_x0[dv_name] - g_lofi_x0[dv_name]
                 gamma += np.dot(g_gamma, inputs[input])
 
-        outputs["gamma"] = gamma
+        outputs[f"gamma_{resp_name}"] = gamma
 
     def compute_partials(self, inputs, partials):
+        resp_metadata = self.options['repsonse_metadata']
+        resp_name = resp_metadata['name'],
         order = self.options["order"]
         if order > 0:
             g_lofi_x0 = self.options["g_lofi_x0"]
@@ -332,7 +345,7 @@ class AdditiveCalibration(om.ExplicitComponent):
             for input in inputs.keys():
                 dv_name = input[6:]
                 g_gamma = g_hifi_x0[dv_name] - g_lofi_x0[dv_name]
-                partials["gamma", input] = g_gamma
+                partials[f"gamma_{resp_name}", input] = g_gamma
 
 
 if __name__ == "__main__":

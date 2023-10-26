@@ -7,6 +7,7 @@ import openmdao.api as om
 from openmdao.core.driver import Driver
 
 from .trust_region import TrustRegion
+from .calibrated_response import CalibratedResponse
 from .calibration import AdditiveCalibration, calibrate
 from .new_design import NewDesign
 from .utils import \
@@ -201,13 +202,15 @@ class TRMMDriver(Driver):
             lf_model.add_subsystem(f"{response_name}_cal",
                                    AdditiveCalibration(metadata=model_metadata,
                                                        inputs=self._designvars,
+                                                       response_metadata=meta,
                                                        order=1),
                                    promotes_inputs=['*'],
-                                   promotes_outputs=[('gamma', f'{response_name}_bias')])
+                                   promotes_outputs=[(f'gamma_{response_name}', f'{response_name}_bias')])
 
             lf_model.add_subsystem(f"{response_name}_hat",
-                                   om.ExecComp(
-                                       f"{calibrated_response_name} = {response_name} + {response_name}_bias"),
+                                   CalibratedResponse(model_metadata=model_metadata,
+                                                      response=response_name,
+                                                      calibrated_response_name=calibrated_response_name),
                                    promotes=['*'])
 
             if meta['type'] == 'con':
