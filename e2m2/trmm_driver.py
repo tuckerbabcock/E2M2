@@ -168,7 +168,8 @@ class TRMMDriver(Driver):
 
         for dv, meta in self._designvars.items():
             print(dv, meta)
-            lf_model.add_design_var(f"delta_{dv}")
+            dv_name = meta['name']
+            lf_model.add_design_var(f"delta_{dv_name}")
 
             scaler = meta['total_scaler'] or 1.0
             adder = meta['total_adder'] or 0.0
@@ -176,7 +177,7 @@ class TRMMDriver(Driver):
             dv_ub = meta['upper'] / scaler - adder
 
             print(f"{dv} lb: {dv_lb}, ub: {dv_ub}")
-            lf_model.add_constraint(dv,
+            lf_model.add_constraint(dv_name,
                                     lower=dv_lb,
                                     upper=dv_ub,
                                     scaler=scaler,

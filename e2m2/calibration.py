@@ -267,9 +267,10 @@ class AdditiveCalibration(om.ExplicitComponent):
                         raise RuntimeError(
                             f"Input: {input} supplied to Calibration is not a string!")
                     # val = input_opts.get("val", 1)
+                    dv_name = input_opts['name']
                     shape = metadata[input_opts['source']]['shape']
                     units = input_opts.get("units", None)
-                    self.add_input(f"delta_{input}",
+                    self.add_input(f"delta_{dv_name}",
                                    val=0,
                                    shape=shape,
                                    units=units)
@@ -292,12 +293,12 @@ class AdditiveCalibration(om.ExplicitComponent):
                 self.declare_partials("gamma", f"delta_{input}")
 
             elif isinstance(inputs, dict):
-                for key, value in inputs.items():
-                    if not isinstance(key, str):
+                for input, meta in inputs.items():
+                    if not isinstance(input, str):
                         raise RuntimeError(
                             f"Input: {input} supplied to Calibration is not a string!")
-                self.declare_partials(
-                    "gamma", [f"delta_{input}" for input in inputs.keys()])
+                    input_name = meta['name']
+                    self.declare_partials("gamma", f"delta_{input_name}")
 
     def compute(self, inputs, outputs):
         order = self.options["order"]
