@@ -29,18 +29,19 @@ class TrustRegion(om.ExplicitComponent):
                         f"dv: {dv} supplied to TrustRegion is not a string!")
 
         elif isinstance(dvs, dict):
-            for dv, dv_opts in dvs.items():
-                if not isinstance(dv, str):
+            for meta in dvs.values():
+                dv_name = meta['name']
+                if not isinstance(dv_name, str):
                     raise RuntimeError(
-                        f"dv: {dv} supplied to TrustRegion is not a string!")
+                        f"dv name: {dv} supplied to TrustRegion is not a string!")
                 # val = dv_opts.get("val", 1)
-                shape = metadata[dv_opts['source']]['shape']
+                shape = metadata[meta['source']]['shape']
                 print(f"trust region shape: {shape}")
-                units = dv_opts.get("units", None)
-                self.add_input(f"delta_{dv}", val=0,
+                units = meta.get("units", None)
+                self.add_input(f"delta_{dv_name}", val=0,
                                shape=shape, units=units)
                 # self.declare_partials("step_norm", dv, method='cs')
-                self.declare_partials("step_norm", f"delta_{dv}")
+                self.declare_partials("step_norm", f"delta_{dv_name}")
 
         self.add_output("step_norm", 0.0,
                         desc="The squared 2-norm of the design step")
