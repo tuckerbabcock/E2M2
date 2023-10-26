@@ -278,7 +278,7 @@ class AdditiveCalibration(om.ExplicitComponent):
                                    shape=shape,
                                    units=units)
 
-        resp_metadata = self.options['repsonse_metadata']
+        resp_metadata = self.options['response_metadata']
         resp_name = resp_metadata['name'],
         resp_shape = metadata['resp_name']['shape']
         resp_units = resp_metadata['units']
@@ -310,7 +310,7 @@ class AdditiveCalibration(om.ExplicitComponent):
                         f"gamma_{resp_name}", f"delta_{input_name}")
 
     def compute(self, inputs, outputs):
-        resp_metadata = self.options['repsonse_metadata']
+        resp_metadata = self.options['response_metadata']
         resp_name = resp_metadata['name'],
         order = self.options["order"]
 
@@ -333,7 +333,7 @@ class AdditiveCalibration(om.ExplicitComponent):
         outputs[f"gamma_{resp_name}"] = gamma
 
     def compute_partials(self, inputs, partials):
-        resp_metadata = self.options['repsonse_metadata']
+        resp_metadata = self.options['response_metadata']
         resp_name = resp_metadata['name'],
         order = self.options["order"]
         if order > 0:
