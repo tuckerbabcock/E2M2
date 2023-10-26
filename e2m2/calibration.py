@@ -280,7 +280,7 @@ class AdditiveCalibration(om.ExplicitComponent):
 
         resp_metadata = self.options['response_metadata']
         resp_name = resp_metadata['name'],
-        resp_shape = metadata['resp_name']['shape']
+        resp_shape = metadata[resp_name]['shape']
         resp_units = resp_metadata['units']
         self.add_output(f"gamma_{resp_name}",
                         val=0,
