@@ -297,7 +297,7 @@ class TRMMDriver(Driver):
                                    #    dvs=[f"delta_{dv}" for dv in self._designvars.keys()]),
                                    dvs=self._designvars),
                                promotes_inputs=[
-                                   f"delta_{dv}" for dv in self._designvars.keys()],
+                                   f"delta_{meta['name']}" for meta in self._designvars.values()],
                                promotes_outputs=['step_norm'])
 
         lf_model.add_subsystem("trust_radius_con",
